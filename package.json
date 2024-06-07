@@ -2,17 +2,30 @@
   "name": "wxbot-puppet-bridge",
   "version": "1.0.0",
   "description": "Puppet Bridge for WeChat Robots",
-  "type": "module",
   "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/yzqzy/wxbot-puppet-bridge.git"
   },
   "keywords": [],
-  "author": "heora",
+  "author": "heora <yueluo.yang@gmail.com>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/yzqzy/wxbot-puppet-bridge/issues"
   },
-  "homepage": "https://github.com/yzqzy/wxbot-puppet-bridge#readme"
+  "homepage": "https://github.com/yzqzy/wxbot-puppet-bridge#readme",
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "typescript": "^5.4.5",
+    "wechaty-puppet": "^1.20.2"
+  },
+  "peerDependencies": {
+    "wechaty-puppet": "^1.20.2"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "file-box": "^1.4.15",
+    "hyper-express": "^6.16.3"
+  }
 }

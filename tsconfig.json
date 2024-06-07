@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "commonjs",
+    "strict": true,
+    "outDir": "dist",
+    "baseUrl": "./",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@src/*": ["src/*"]
+    },
+    "useUnknownInCatchVariables": false
+  },
+  "include": ["src/**/*.ts", "spec/**/*.ts", "build.ts"]
+}
