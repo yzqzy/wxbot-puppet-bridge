@@ -47,13 +47,14 @@ class Bridge extends EventEmitter {
 
   async stop(err?: any) {
     this.stopTimer();
+
     await this.unHookMsg();
 
-    if (err) {
-      log.error('WeChat SDK server stopped with error', err);
-    }
+    if (err) log.error('WeChat SDK server stopped with error', err);
 
     log.info('WeChat SDK server is stopped');
+
+    process.exit(0);
   }
 
   private catchErrors() {
@@ -71,7 +72,7 @@ class Bridge extends EventEmitter {
       try {
         const data = req.body;
         await this.handleRecvMsg(data);
-        res.send('ok');
+        res.json({ success: true });
       } catch (error) {
         log.error('handle recv msg failed', error);
         res.status(500).send('error');
@@ -79,7 +80,7 @@ class Bridge extends EventEmitter {
     });
 
     app.listen(this.port, () => {
-      log.info('WeChat SDK server is running on port', this.port);
+      log.info('WeChat SDK server is listening on port', this.port);
     });
   }
 
@@ -100,7 +101,7 @@ class Bridge extends EventEmitter {
       const data = res.data;
 
       if (data.cookie) {
-        log.info('hook msg success, wechat sdk cookie', data.cookie);
+        log.info('hook msg success, get cookie', data.cookie);
         this.hookCookie = data.cookie;
         return;
       }
@@ -129,9 +130,9 @@ class Bridge extends EventEmitter {
       this.createHttpServer();
 
       const url = `http://192.168.1.15:${this.port}/api/msg/recv`;
-      this.hookMsg(2, url);
-
       log.info('hook wechat sdk with url', url);
+
+      await this.hookMsg(2, url);
       return;
     }
 
