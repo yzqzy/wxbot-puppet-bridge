@@ -13,5 +13,5 @@
     },
     "useUnknownInCatchVariables": false
   },
-  "include": ["src/**/*.ts", "spec/**/*.ts", "build.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
 }
