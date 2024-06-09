@@ -9,7 +9,7 @@
 ## 一、安装
 
 ```bash
-npm install wechaty-puppet-wechat
+npm install wxbot-puppet-bridge
 ```
 
 ## 二、基础用法
@@ -18,8 +18,8 @@ npm install wechaty-puppet-wechat
 import { ScanStatus } from 'wechaty-puppet/types';
 import { log } from 'wechaty-puppet';
 import qrTerm from 'qrcode-terminal';
-import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from 'wechaty-puppet-wechat';
-import { jsonStringify } from 'wechaty-puppet-wechat';
+import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from 'wxbot-puppet-bridge';
+import { jsonStringify } from 'wxbot-puppet-bridge/dist/shared';
 
 async function main() {
   const puppet = new PuppetBridge({

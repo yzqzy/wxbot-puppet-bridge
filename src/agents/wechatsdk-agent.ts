@@ -4,7 +4,6 @@ import { WebSocketServer } from 'ws';
 import { log } from 'wechaty-puppet';
 
 import EnvVars from '@src/config/EnvVars';
-import { jsonStringify } from '@src/shared/tools';
 import { decodeQRCode } from '@src/shared/qrcode';
 
 import type { RecvMsg, Result } from './wechatsdk-typings';

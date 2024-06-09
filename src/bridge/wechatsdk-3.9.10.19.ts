@@ -1,11 +1,5 @@
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
-
 import * as PUPPET from 'wechaty-puppet';
 import { log } from 'wechaty-puppet';
-import type { FileBoxInterface } from 'file-box';
-import { FileBox, FileBoxType } from 'file-box';
 
 import type {
   EventError,
