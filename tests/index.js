@@ -1,1 +1,1 @@
-require('./bridge/wechatsdk-base');
+require('./bridge-wechatsdk-base');
