@@ -113,7 +113,6 @@ class Bridge extends EventEmitter {
       ws.on('message', async data => {
         try {
           const recvMsg = JSON.parse(data.toString());
-          console.log('recvMsg', recvMsg);
           await this.handleRecvMsg(recvMsg);
         } catch (error) {
           log.error('handle recv msg failed', error);

@@ -1,5 +1,4 @@
 import { LosslessNumber } from 'lossless-json';
-import { type } from 'os';
 
 export interface Robot {
   alias: string;

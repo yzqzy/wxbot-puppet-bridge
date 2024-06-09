@@ -8,9 +8,9 @@ import type { FileBoxInterface } from 'file-box';
 import { FileBox, FileBoxType } from 'file-box';
 
 import type {
-  EventLogin,
   EventError,
-  EventScan
+  EventScan,
+  EventMessage
 } from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import Bridge from '@src/agents/wechatsdk-agent';
@@ -28,8 +28,6 @@ interface PuppetOptions extends PUPPET.PuppetOptions {
 
 class PuppetBridge extends PUPPET.Puppet {
   static override readonly VERSION = VERSION;
-
-  private isReady = false;
 
   private bridge!: Bridge;
 
@@ -88,14 +86,15 @@ class PuppetBridge extends PUPPET.Puppet {
   private async onAgentReady(): Promise<void> {
     log.verbose('PuppetBridge', 'onAgentReady()');
 
-    this.isReady = true;
     this.emit('ready');
   }
 
   private async onScan(qrcode: any) {
-    log.verbose('PuppetBridge', 'onScan(%s)', qrcode);
+    log.verbose('PuppetBridge', 'onScan()');
 
     if (!qrcode) return;
+
+    log.info('PuppetBridge', 'onScan() qrcode %s', qrcode);
 
     this.emit('scan', {
       qrcode,
@@ -104,9 +103,11 @@ class PuppetBridge extends PUPPET.Puppet {
   }
 
   private async onLogin(user: User): Promise<void> {
-    log.verbose('PuppetBridge', 'onLogin(%s)', jsonStringify(user));
+    log.verbose('PuppetBridge', 'onLogin()');
 
     if (!user) return;
+
+    log.info('PuppetBridge', 'onLogin() user %s', jsonStringify(user));
 
     this.login(user.userName);
 
@@ -120,9 +121,25 @@ class PuppetBridge extends PUPPET.Puppet {
   }
 
   private async onMessage(message: RecvMsg): Promise<void> {
-    log.verbose('PuppetBridge', 'onMessage(%s)', jsonStringify(message));
+    log.verbose('PuppetBridge', 'onMessage()');
 
     if (!message) return;
+
+    log.info('PuppetBridge', 'onMessage() message %s', jsonStringify(message));
+
+    const payload = {
+      type: message.type,
+      id: message.msgSvrID,
+      messageId: message.msgSvrID.toString(),
+      talkerId: message.talkerInfo.userName,
+      text: message.content,
+      timestamp: Date.now(),
+      fromId: message.from,
+      toId: message.to,
+      roomId: message.isChatroomMsg ? message.from : ''
+    } as EventMessage;
+
+    this.emit('message', payload);
   }
 
   private async onError(error: Error): Promise<void> {
