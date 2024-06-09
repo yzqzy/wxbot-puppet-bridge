@@ -1,5 +1,0 @@
-{
-  "watch": ["src", "tests"],
-  "ext": "ts",
-  "exec": "./node_modules/.bin/ts-node --files -r tsconfig-paths/register ./tests/index.ts"
-}

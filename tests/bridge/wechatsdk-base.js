@@ -1,12 +1,16 @@
-import { ScanStatus } from 'wechaty-puppet/types';
-import { log } from 'wechaty-puppet';
-import qrTerm from 'qrcode-terminal';
-import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
-import { jsonStringify } from '@src/shared/tools';
+const { ScanStatus } = require('wechaty-puppet');
+const qrTerm = require('qrcode-terminal');
+
+const { log } = require('wechaty-puppet');
+
+const {
+  WeChatSdkPuppetBridge_3_9_10_19: PuppetBridge
+} = require('../../dist/mod');
+const { jsonStringify } = require('../../dist/shared');
 
 async function main() {
   const puppet = new PuppetBridge({
-    apiUrl: 'http://192.168.1.12:8888',
+    apiUrl: 'http://127.0.0.1:8888',
     protocol: 'ws'
   });
 
@@ -15,7 +19,7 @@ async function main() {
 
     if (status === ScanStatus.Waiting || status === ScanStatus.Timeout) {
       log.info('Please scan the QR code to login:', qrcode);
-      qrTerm.generate(qrcode as string, { small: true }); // show qrcode on console
+      qrTerm.generate(qrcode, { small: true }); // show qrcode on console
       log.info('StarterBot', 'onScan: %s(%s)', ScanStatus[status], status);
       return;
     }

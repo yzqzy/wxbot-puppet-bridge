@@ -1,32 +1,13 @@
-# WxBot Puppet Bridge
-
-基于 [wechaty](https://github.com/wechaty) 协议的微信机器人桥接服务。
-
-已支持版本: 
-
-* [wechatsdk-3.9.10.19](https://github.com/WeChatAPIs/wechatAPI)
-
-## 一、安装
-
-```bash
-npm install wechaty-puppet-wechat
-```
-
-## 二、基础用法
-
-```typescript
 import { ScanStatus } from 'wechaty-puppet/types';
 import { log } from 'wechaty-puppet';
 import qrTerm from 'qrcode-terminal';
-import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from 'wechaty-puppet-wechat';
-import { jsonStringify } from 'wechaty-puppet-wechat';
+import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
+import { jsonStringify } from '@src/shared/tools';
 
 async function main() {
   const puppet = new PuppetBridge({
-    // wx robot api url
     apiUrl: 'http://127.0.0.1:8888',
-    // recv msg protocol, http or ws, default http
-    protocol: 'ws' 
+    protocol: 'ws'
   });
 
   puppet.on('scan', async options => {
@@ -66,11 +47,3 @@ async function main() {
 }
 
 main().catch(console.error);
-```
-
-### 三、参考
-
-* [wechaty-puppet](https://github.com/wechaty/wechaty-puppet)：About
-Puppet Provider Abstraction for Wechaty
-* [puppet-xp](https://github.com/wechaty/puppet-xp)：Wechaty Puppet WeChat Windows Protocol
-* [wechatsdk](https://github.com/WeChatAPIs/wechatAPI): 强大的微信 API 工具

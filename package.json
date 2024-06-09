@@ -3,13 +3,23 @@
   "version": "1.0.0",
   "description": "Puppet Bridge for WeChat Robots",
   "scripts": {
-    "test": "nodemon --config ./tests/nodemon.json",
-    "build": "npx ts-node src/mod.ts"
+    "dev": "nodemon --config ./examples/nodemon.json",
+    "build": "npx ts-node build.ts",
+    "test": "node tests/index.js"
+  },
+  "main": "dist/mod.js",
+  "engines": {
+    "node": ">=18.15.0",
+    "npm": ">=8.19.3"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/yzqzy/wxbot-puppet-bridge.git"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "keywords": [
     "wechaty",
     "wechat",
@@ -44,6 +54,7 @@
     "nodemon": "^3.1.3",
     "qrcode-terminal": "^0.12.0",
     "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.10",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.4.5",
     "wechaty-puppet": "^1.20.2"
