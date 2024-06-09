@@ -6,7 +6,8 @@ import { jsonStringify } from '@src/shared/tools';
 
 async function main() {
   const puppet = new PuppetBridge({
-    apiUrl: 'http://192.168.1.12:19088'
+    apiUrl: 'http://192.168.1.12:8888',
+    protocol: 'ws'
   });
 
   puppet.on('scan', async options => {
@@ -26,8 +27,20 @@ async function main() {
     log.info('User login: ', jsonStringify(user));
   });
 
+  puppet.on('ready', () => {
+    log.info('Puppet is ready');
+  });
+
+  puppet.on('message', message => {
+    log.info('Message: ', jsonStringify(message));
+  });
+
   puppet.on('logout', user => {
     log.info('User logout: ', jsonStringify(user));
+  });
+
+  puppet.on('error', error => {
+    log.error('Puppet error:', error.data);
   });
 
   await puppet.start();

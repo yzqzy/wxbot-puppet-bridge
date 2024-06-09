@@ -1,24 +1,8 @@
 import axios from 'axios';
+import { Result, User } from './wechatsdk-typings';
 
 interface WeChatSdkApiOptions {
   apiUrl: string;
-}
-
-interface Robot {
-  alias: string;
-  isLogin: false;
-  nickeName: string | null;
-  pid: number;
-  port: number;
-  smallHeadImgUrl: string;
-  userName: string;
-}
-
-interface Result<T> {
-  data: T;
-  description: string;
-  error_code: number;
-  robot: Robot;
 }
 
 class Request {
@@ -63,13 +47,7 @@ class WeChatSdkApi {
 
   userInfo() {
     return this.reqest.post<{
-      data: {
-        alias: string;
-        dbKey: string;
-        exePath: string;
-        isLogin: boolean;
-        userName: string;
-      };
+      data: User;
       desc: '';
       status: 0;
     }>('/api/', { type: 28 });

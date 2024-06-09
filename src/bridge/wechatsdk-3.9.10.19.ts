@@ -7,8 +7,16 @@ import { log } from 'wechaty-puppet';
 import type { FileBoxInterface } from 'file-box';
 import { FileBox, FileBoxType } from 'file-box';
 
+import type {
+  EventLogin,
+  EventError,
+  EventScan
+} from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import Bridge from '@src/agents/wechatsdk-agent';
+import { jsonStringify } from '@src/shared/tools';
+import { RecvMsg, User } from '@src/agents/wechatsdk-typings';
+import { ScanStatus } from 'wechaty-puppet/types';
 
 const VERSION = '3.9.10.19';
 
@@ -46,19 +54,23 @@ class PuppetBridge extends PUPPET.Puppet {
     return VERSION;
   }
 
+  override login(contactId: string) {
+    log.verbose('PuppetBridge', 'login(%s)', contactId);
+
+    super.login(contactId);
+  }
+
   async onStart(): Promise<void> {
     log.verbose('PuppetBridge', 'onStart()');
 
     this.bridge.start();
-
     this.bindEvents();
   }
 
   async onStop(): Promise<void> {
-    if (!this.bridge) return;
-
     log.verbose('PuppetBridge', 'onStop()');
 
+    if (!this.bridge) return;
     this.bridge.stop();
   }
 
@@ -70,41 +82,56 @@ class PuppetBridge extends PUPPET.Puppet {
     this.bridge.on('login', this.onLogin.bind(this));
     this.bridge.on('logout', this.onLogout.bind(this));
     this.bridge.on('message', this.onMessage.bind(this));
+    this.bridge.on('error', this.onError.bind(this));
   }
 
   private async onAgentReady(): Promise<void> {
     log.verbose('PuppetBridge', 'onAgentReady()');
 
     this.isReady = true;
-
     this.emit('ready');
   }
 
-  private async onScan(args: any) {
-    log.verbose('PuppetBridge', 'onScan()');
+  private async onScan(qrcode: any) {
+    log.verbose('PuppetBridge', 'onScan(%s)', qrcode);
 
-    if (!args) return;
+    if (!qrcode) return;
 
-    this.emit('scan', args);
+    this.emit('scan', {
+      qrcode,
+      status: ScanStatus.Waiting
+    } as EventScan);
   }
 
-  private async onLogin(user: any): Promise<void> {
-    log.verbose('PuppetBridge', 'onLogin()');
+  private async onLogin(user: User): Promise<void> {
+    log.verbose('PuppetBridge', 'onLogin(%s)', jsonStringify(user));
 
     if (!user) return;
 
-    this.emit('login', user);
+    this.login(user.userName);
+
+    process.nextTick(this.onAgentReady.bind(this));
   }
 
   private async onLogout(reasonNum: number): Promise<void> {
     log.verbose('PuppetBridge', 'onLogout()');
+
     await super.logout(reasonNum ? 'Kicked by server' : 'logout');
   }
 
-  private async onMessage(message: any): Promise<void> {
-    log.verbose('PuppetBridge', 'onMessage()', message);
+  private async onMessage(message: RecvMsg): Promise<void> {
+    log.verbose('PuppetBridge', 'onMessage(%s)', jsonStringify(message));
 
     if (!message) return;
+  }
+
+  private async onError(error: Error): Promise<void> {
+    log.error('PuppetBridge', 'onError()');
+
+    this.emit('error', {
+      data: error.stack,
+      gerror: error.message
+    } as EventError);
   }
 }
 

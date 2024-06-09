@@ -1,12 +1,14 @@
 import { EventEmitter } from 'events';
-import express, { Express } from 'express';
-import { ScanStatus } from 'wechaty-puppet/types';
+import express from 'express';
+import { WebSocketServer } from 'ws';
 import { log } from 'wechaty-puppet';
 
 import EnvVars from '@src/config/EnvVars';
-import { decodeQRCode } from '@src/shared/qrcode';
-import WeChatSdkApi from './wechatsdk-api';
 import { jsonStringify } from '@src/shared/tools';
+import { decodeQRCode } from '@src/shared/qrcode';
+
+import type { RecvMsg, Result } from './wechatsdk-typings';
+import WeChatSdkApi from './wechatsdk-api';
 
 export type BridgeProtocol = 'ws' | 'http';
 
@@ -17,6 +19,9 @@ interface WeChatSdkOptions {
 
 class Bridge extends EventEmitter {
   private port!: number;
+  private host!: string;
+
+  private wechatsdk!: WeChatSdkApi;
 
   private protocol: BridgeProtocol = 'http';
   private apiUrl: string = '';
@@ -24,15 +29,13 @@ class Bridge extends EventEmitter {
   private isLoggedIn: boolean = false;
   private timer: number | null = null;
   private timerInterval: number = 1000 * 30; // 30 seconds
-
-  private wechatsdk!: WeChatSdkApi;
-
   private hookCookie: string = '';
 
   constructor(options: WeChatSdkOptions) {
     super();
 
-    this.port = Number(EnvVars.WXBOT_PORT) || 18000;
+    this.host = EnvVars.WXBOT_HOST || '127.0.0.1';
+    this.port = Number(EnvVars.WXBOT_PORT) || 4000;
 
     this.initOptions(options);
   }
@@ -50,7 +53,10 @@ class Bridge extends EventEmitter {
 
     await this.unHookMsg();
 
-    if (err) log.error('WeChat SDK server stopped with error', err);
+    if (err) {
+      this.emit('error', err);
+      log.error('WeChat SDK server stopped with error', err);
+    }
 
     log.info('WeChat SDK server is stopped');
 
@@ -85,11 +91,49 @@ class Bridge extends EventEmitter {
   }
 
   private createWsServer() {
-    // TODO: implement ws server
+    const wss = new WebSocketServer({
+      port: this.port,
+      perMessageDeflate: {
+        zlibDeflateOptions: {
+          chunkSize: 1024,
+          memLevel: 7,
+          level: 3
+        },
+        zlibInflateOptions: {
+          chunkSize: 10 * 1024
+        },
+        concurrencyLimit: 10,
+        threshold: 1024
+      }
+    });
+
+    wss.on('connection', ws => {
+      log.info('WeChat SDK server is connected');
+
+      ws.on('message', async data => {
+        try {
+          const recvMsg = JSON.parse(data.toString());
+          console.log('recvMsg', recvMsg);
+          await this.handleRecvMsg(recvMsg);
+        } catch (error) {
+          log.error('handle recv msg failed', error);
+        }
+      });
+
+      ws.on('close', () => {
+        log.info('WeChat SDK server is disconnected');
+      });
+      ws.on('error', error => {
+        log.error('WeChat SDK server error', error);
+      });
+    });
   }
 
-  private async handleRecvMsg(data: any) {
-    log.info('receive message from wechat', jsonStringify(data));
+  private async handleRecvMsg(data: Result<RecvMsg>) {
+    if (!this.isLoggedIn) {
+      await this.getUserInfo();
+    }
+    this.emit('message', data.data);
   }
 
   private async hookMsg(protocol: number, url: string) {
@@ -126,24 +170,31 @@ class Bridge extends EventEmitter {
   }
 
   private async createApp() {
-    if (this.protocol === 'http') {
-      this.createHttpServer();
+    try {
+      if (this.protocol === 'http') {
+        this.createHttpServer();
 
-      const url = `http://192.168.1.15:${this.port}/api/msg/recv`;
-      log.info('hook wechat sdk with url', url);
+        const url = `http://${this.host}:${this.port}/api/msg/recv`;
+        log.info('hook wechat sdk with url', url);
 
-      await this.hookMsg(2, url);
-      return;
+        await this.hookMsg(2, url);
+        return;
+      }
+      if (this.protocol === 'ws') {
+        this.createWsServer();
+
+        const url = `ws://${this.host}:${this.port}/ws/msg/recv`;
+        log.info('hook wechat sdk with url', url);
+
+        await this.hookMsg(3, url);
+        return;
+      }
+
+      throw new Error('invalid protocol');
+    } catch (error) {
+      log.error('create app failed', error);
+      throw error;
     }
-
-    if (this.protocol === 'ws') {
-      this.createWsServer();
-
-      // TODO: hook wechat sdk with ws server
-      return;
-    }
-
-    throw new Error('invalid protocol');
   }
 
   private createInstance() {
@@ -165,36 +216,42 @@ class Bridge extends EventEmitter {
     this.timer = null;
   }
 
+  private async getUserInfo() {
+    const res = await this.wechatsdk.userInfo();
+
+    if (res.error_code !== 10000) throw new Error('check login failed');
+
+    if (res.data.data.isLogin) {
+      log.info('user is logged in');
+
+      this.isLoggedIn = true;
+
+      this.emit('login', res.data.data);
+      this.stopTimer();
+      return res;
+    }
+
+    log.info('user is not logged in');
+  }
+
   private async checkLogin(initial: boolean = false) {
     if (this.isLoggedIn) return;
 
     try {
-      const res = await this.wechatsdk.userInfo();
+      await this.getUserInfo();
 
-      if (res.error_code !== 10000) throw new Error('check login failed');
+      if (this.isLoggedIn || !initial) return;
 
-      if (res.data.data.isLogin) {
-        log.info('user is logged in');
+      log.info(`get login qrcode`);
 
-        this.isLoggedIn = true;
+      const res = await this.wechatsdk.qrcode();
 
-        this.emit('login', res.data.data);
-        this.stopTimer();
-        return;
-      }
+      if (res.error_code !== 10000) throw new Error('get qrcode failed');
 
-      log.info('user is not logged in');
+      const qrcodeUrl = await decodeQRCode(Buffer.from(res.data.qrcode));
+      log.info(`get qrcode success, url: ${qrcodeUrl}`);
 
-      if (initial) {
-        const res = await this.wechatsdk.qrcode();
-
-        if (res.error_code !== 10000) throw new Error('get qrcode failed');
-
-        this.emit('scan', {
-          qrcode: await decodeQRCode(Buffer.from(res.data.qrcode)),
-          status: ScanStatus.Waiting
-        });
-      }
+      this.emit('scan', qrcodeUrl);
     } catch (error) {
       log.error('check login failed', error);
     }
