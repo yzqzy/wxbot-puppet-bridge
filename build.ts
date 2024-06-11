@@ -5,8 +5,6 @@ import childProcess from 'child_process';
   try {
     // Remove current build
     await remove('./dist/');
-    // Remove current types
-    await remove('./types/');
     // Build
     await exec(
       'tsc --build tsconfig.prod.json && tsc-alias -p tsconfig.prod.json',

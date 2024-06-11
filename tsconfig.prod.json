@@ -4,7 +4,7 @@
     "sourceMap": false,
     "removeComments": true,
     "declaration": true,
-    "declarationDir": "types"
+    "declarationDir": "dist/types"
   },
   "exclude": ["examples", "build.ts"]
 }
