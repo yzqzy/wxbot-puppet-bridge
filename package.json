@@ -9,7 +9,6 @@
     "test": "node tests/index.js"
   },
   "main": "dist/mod.js",
-  "types": "dist/types/mod.d.ts",
   "engines": {
     "node": ">=18.15.0",
     "npm": ">=8.19.3"

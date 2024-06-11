@@ -3,8 +3,7 @@
   "compilerOptions": {
     "sourceMap": false,
     "removeComments": true,
-    "declaration": true,
-    "declarationDir": "dist/types"
+    "declaration": true
   },
   "exclude": ["examples", "build.ts"]
 }
