@@ -4,6 +4,7 @@
   "description": "Puppet Bridge for WeChat Robots",
   "scripts": {
     "dev": "nodemon --config ./examples/nodemon.json",
+    "start": "ts-node --files -r tsconfig-paths/register ./examples/index.ts",
     "build": "npx ts-node build.ts",
     "test": "node tests/index.js"
   },

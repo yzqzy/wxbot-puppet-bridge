@@ -6,8 +6,10 @@ import { log } from 'wechaty-puppet';
 import EnvVars from '@src/config/EnvVars';
 import { decodeQRCode } from '@src/shared/qrcode';
 
-import type { RecvMsg, Result } from './wechatsdk-typings';
+import type { RecvMsg, Result } from './wechatsdk-types';
 import WeChatSdkApi from './wechatsdk-api';
+import { isJsonString } from '@src/shared';
+import { killPort } from '@src/shared/port';
 
 export type BridgeProtocol = 'ws' | 'http';
 
@@ -52,12 +54,21 @@ class Bridge extends EventEmitter {
 
     await this.unHookMsg();
 
+    log.info('WeChat SDK server is stopped');
+
     if (err) {
-      this.emit('error', err);
-      log.error('WeChat SDK server stopped with error', err);
+      const errMsg = (err && err.message) || 'unknown error';
+      this.emit('error', new Error(errMsg));
+      log.error('WeChat SDK server stopped with error', errMsg);
     }
 
-    log.info('WeChat SDK server is stopped');
+    this.emit('logout');
+
+    try {
+      await killPort(this.port);
+    } catch (error) {
+      log.error('kill port failed', error);
+    }
 
     process.exit(0);
   }
@@ -111,8 +122,9 @@ class Bridge extends EventEmitter {
 
       ws.on('message', async data => {
         try {
-          const recvMsg = JSON.parse(data.toString());
-          await this.handleRecvMsg(recvMsg);
+          const dataStr = data.toString();
+          if (!isJsonString(dataStr)) return;
+          await this.handleRecvMsg(JSON.parse(dataStr));
         } catch (error) {
           log.error('handle recv msg failed', error);
         }
@@ -128,9 +140,6 @@ class Bridge extends EventEmitter {
   }
 
   private async handleRecvMsg(data: Result<RecvMsg>) {
-    if (!this.isLoggedIn) {
-      await this.getUserInfo();
-    }
     this.emit('message', data.data);
   }
 
@@ -214,7 +223,7 @@ class Bridge extends EventEmitter {
     this.timer = null;
   }
 
-  private async getUserInfo() {
+  async getUserInfo() {
     const res = await this.wechatsdk.userInfo();
 
     if (res.error_code !== 10000) throw new Error('check login failed');

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Result, User } from './wechatsdk-typings';
+import { Result, User } from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
   apiUrl: string;
@@ -65,7 +65,7 @@ class WeChatSdkApi {
     return this.reqest.post('/api/', { type: 1002, cookie });
   }
 
-  exit() {
+  logout() {
     return this.reqest.post('/api/', { type: 81 });
   }
 }

@@ -63,6 +63,25 @@ export interface RecvMsg {
   type: number;
 }
 
+interface RecvScanedMsg {
+  effectiveTime?: string;
+  headImgUrl?: string;
+  needExtDevCaptcha?: string;
+  nickName?: string;
+  reservedFlag1?: string;
+  reservedFlag2?: string;
+  extDevNewPwd?: string;
+  mobileClientVer?: string;
+  mobileDeviceType?: string;
+}
+
+export interface RecvScanMsg extends RecvScanedMsg {
+  desc: string;
+  state: number;
+  step: number;
+  uuid: string;
+}
+
 export interface User {
   alias: string;
   dbKey: string;

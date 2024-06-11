@@ -9,7 +9,7 @@ import type {
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import Bridge from '@src/agents/wechatsdk-agent';
 import { jsonStringify } from '@src/shared/tools';
-import { RecvMsg, User } from '@src/agents/wechatsdk-typings';
+import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
 
 const VERSION = '3.9.10.19';
@@ -24,6 +24,8 @@ class PuppetBridge extends PUPPET.Puppet {
   static override readonly VERSION = VERSION;
 
   private bridge!: Bridge;
+
+  private userInfo!: User;
 
   constructor(
     options: PuppetOptions = {
@@ -99,10 +101,11 @@ class PuppetBridge extends PUPPET.Puppet {
   private async onLogin(user: User): Promise<void> {
     log.verbose('PuppetBridge', 'onLogin()');
 
-    if (!user) return;
+    if (!user || this.userInfo) return;
 
     log.info('PuppetBridge', 'onLogin() user %s', jsonStringify(user));
 
+    this.userInfo = user;
     this.login(user.userName);
 
     process.nextTick(this.onAgentReady.bind(this));
@@ -114,30 +117,81 @@ class PuppetBridge extends PUPPET.Puppet {
     await super.logout(reasonNum ? 'Kicked by server' : 'logout');
   }
 
-  private async onMessage(message: RecvMsg): Promise<void> {
-    log.verbose('PuppetBridge', 'onMessage()');
+  private isRecvScanMsg(msg: RecvMsg | RecvScanMsg): msg is RecvScanMsg {
+    return (msg as RecvScanMsg)?.desc?.includes('scan');
+  }
+  private isRecvMsg(msg: RecvMsg | RecvScanMsg): msg is RecvMsg {
+    return (
+      (msg as RecvMsg)?.type !== null && (msg as RecvMsg)?.type !== undefined
+    );
+  }
 
-    if (!message) return;
+  private async scanMsgHandler(message: RecvScanMsg): Promise<void> {
+    log.verbose('PuppetBridge', 'scanMsg()');
 
-    log.info('PuppetBridge', 'onMessage() message %s', jsonStringify(message));
+    let payload = {
+      data: JSON.stringify(message)
+    } as EventScan;
 
+    switch (message.state) {
+      case 0:
+        payload.status = ScanStatus.Waiting;
+        break;
+      case 1:
+        payload.status = ScanStatus.Scanned;
+        break;
+      case 2:
+        payload.status = ScanStatus.Confirmed;
+        break;
+      default:
+        payload.status = ScanStatus.Unknown;
+        break;
+    }
+
+    this.emit('scan', payload);
+  }
+  private async msgHandler(message: RecvMsg): Promise<void> {
     const payload = {
       type: message.type,
       id: message.msgSvrID,
-      messageId: message.msgSvrID.toString(),
-      talkerId: message.talkerInfo.userName,
+      messageId: message?.msgSvrID?.toString(),
+      talkerId: message?.talkerInfo?.userName,
       text: message.content,
       timestamp: Date.now(),
       fromId: message.from,
       toId: message.to,
       roomId: message.isChatroomMsg ? message.from : ''
     } as EventMessage;
-
     this.emit('message', payload);
+  }
+
+  private async onMessage(message: RecvMsg | RecvScanMsg): Promise<void> {
+    log.verbose('PuppetBridge', 'onMessage()');
+
+    if (!message) return;
+
+    log.info('PuppetBridge', 'onMessage() message %s', jsonStringify(message));
+
+    if (this.isRecvScanMsg(message)) {
+      this.scanMsgHandler(message);
+      return;
+    }
+
+    if (this.isRecvMsg(message)) {
+      if (!this.userInfo) {
+        await this.bridge.getUserInfo();
+      }
+      this.msgHandler(message);
+      return;
+    }
+
+    log.warn('PuppetBridge', 'onMessage() unknown message');
   }
 
   private async onError(error: Error): Promise<void> {
     log.error('PuppetBridge', 'onError()');
+
+    if (!error) return;
 
     this.emit('error', {
       data: error.stack,

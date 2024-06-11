@@ -14,8 +14,10 @@ async function main() {
     const { status, qrcode } = options;
 
     if (status === ScanStatus.Waiting || status === ScanStatus.Timeout) {
-      log.info('Please scan the QR code to login:', qrcode);
-      qrTerm.generate(qrcode as string, { small: true }); // show qrcode on console
+      if (qrcode) {
+        log.info('Please scan the QR code to login:', qrcode);
+        qrTerm.generate(qrcode as string, { small: true }); // show qrcode on console
+      }
       log.info('StarterBot', 'onScan: %s(%s)', ScanStatus[status], status);
       return;
     }
