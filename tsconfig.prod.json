@@ -2,7 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "sourceMap": false,
-    "removeComments": true
+    "removeComments": true,
+    "declaration": true,
+    "declarationDir": "types"
   },
   "exclude": ["examples", "build.ts"]
 }

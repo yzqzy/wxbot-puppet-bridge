@@ -16,6 +16,7 @@ node_modules/
 
 # Dist
 dist/
+types/
 
 # Local env files
 .env
