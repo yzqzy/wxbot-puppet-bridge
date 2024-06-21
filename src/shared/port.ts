@@ -1,7 +1,15 @@
+import os from 'os';
 import { exec } from 'child_process';
+
+const isWindows = os.type().toLowerCase().includes('windows');
 
 export const killPort = (port: number) => {
   return new Promise((resolve, reject) => {
+    if (!isWindows)
+      resolve(
+        `Killing process on port ${port} is not supported on non-Windows platforms`
+      );
+
     try {
       exec(`netstat -ano | findstr :${port}`, (error, stdout, stderr) => {
         if (error) {
@@ -29,7 +37,7 @@ export const killPort = (port: number) => {
         }
       });
     } catch (error) {
-      reject(error);
+      resolve(`No process found on port ${port}`);
     }
   });
 };

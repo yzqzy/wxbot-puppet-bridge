@@ -2,9 +2,9 @@
 
 基于 [wechaty](https://github.com/wechaty) 协议的微信机器人桥接服务。
 
-已支持版本: 
+已支持的微信机器人协议: 
 
-* [wechatsdk-3.9.10.19](https://github.com/WeChatAPIs/wechatAPI)
+* [wechatsdk](https://github.com/WeChatAPIs/wechatAPI)
 
 ## 一、安装
 
