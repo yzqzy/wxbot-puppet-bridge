@@ -22,6 +22,7 @@ export interface RecvResult<T> {
   pushTime: number;
   pushType: number;
   robot: Robot;
+  type: number;
 }
 
 export interface ChatRoomMember {
@@ -88,4 +89,22 @@ export interface User {
   exePath: string;
   isLogin: boolean;
   userName: string;
+}
+
+export interface Contact {
+  NickName: string;
+  PYInitial: string;
+  Remark: string;
+  RemarkPYInitial: string;
+  UserName: string;
+  smallHeadImgUrl: string;
+}
+
+export interface ChatRoom {
+  NickName: string;
+  PYInitial: string;
+  Remark: string;
+  RemarkPYInitial: string;
+  Type: number;
+  UserName: string;
 }

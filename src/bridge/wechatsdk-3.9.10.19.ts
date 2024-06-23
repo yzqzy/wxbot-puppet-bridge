@@ -4,13 +4,20 @@ import { log } from 'wechaty-puppet';
 import type {
   EventError,
   EventScan,
-  EventMessage
+  EventMessage,
+  Message,
+  Room,
+  Contact
 } from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import Bridge from '@src/agents/wechatsdk-agent';
 import { jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
+import {
+  ContactPayload,
+  ContactType
+} from 'wechaty-puppet/dist/esm/src/schemas/contact';
 
 const VERSION = '3.9.10.19';
 
@@ -23,9 +30,16 @@ interface PuppetOptions extends PUPPET.PuppetOptions {
 class PuppetBridge extends PUPPET.Puppet {
   static override readonly VERSION = VERSION;
 
+  private isReady: boolean = false;
+
   private bridge!: Bridge;
 
   private userInfo!: User;
+
+  // FIXME: use LRU cache for message store so that we can reduce memory usage
+  private messageStore = new Map<string, Message>();
+  private contactStore = new Map<string, Contact>();
+  private roomStore = new Map<string, Room>();
 
   constructor(
     options: PuppetOptions = {
@@ -52,6 +66,14 @@ class PuppetBridge extends PUPPET.Puppet {
     log.verbose('PuppetBridge', 'login(%s)', contactId);
 
     super.login(contactId);
+  }
+
+  override ding(data?: string | undefined): void {
+    log.silly('PuppetBridge', 'ding(%s)', data || '');
+
+    setTimeout(() => {
+      this.emit('dong', { data: data || '' });
+    }, 1000);
   }
 
   async onStart(): Promise<void> {
@@ -82,6 +104,8 @@ class PuppetBridge extends PUPPET.Puppet {
   private async onAgentReady(): Promise<void> {
     log.verbose('PuppetBridge', 'onAgentReady()');
 
+    this.isReady = true;
+
     this.emit('ready');
   }
 
@@ -98,6 +122,82 @@ class PuppetBridge extends PUPPET.Puppet {
     } as EventScan);
   }
 
+  private async loadContacts(): Promise<void> {
+    log.verbose('PuppetBridge', 'loadContacts()');
+
+    try {
+      const contacts = await this.bridge.getContactList();
+
+      for (const contact of contacts) {
+        let contactType = ContactType.Individual;
+
+        if (contact.UserName.startsWith('gh_')) {
+          contactType = ContactType.Official;
+        }
+        if (contact.UserName.startsWith('@openim')) {
+          contactType = ContactType.Corporation;
+        }
+
+        const contactPayload = {
+          id: contact.UserName,
+          name: contact.NickName,
+          type: contactType,
+          alias: contact.Remark,
+          friend: true,
+          phone: [] as string[],
+          avatar: contact.smallHeadImgUrl
+        } as Contact;
+        this.contactStore.set(contact.UserName, contactPayload);
+      }
+
+      log.info(
+        'PuppetBridge',
+        'loadContacts() contacts count %s',
+        this.contactStore.size
+      );
+    } catch (error) {
+      log.error('PuppetBridge', 'loadContacts() exception %s', error.stack);
+    }
+  }
+
+  private async updateRoomPayload(room: Room): Promise<void> {
+    log.verbose('PuppetBridge', 'updateRoomPayload()');
+    // TODO: update room payload
+  }
+
+  private async loadRooms(): Promise<void> {
+    log.verbose('PuppetBridge', 'loadRooms()');
+
+    try {
+      const rooms = await this.bridge.getChatRoomList();
+
+      for (const room of rooms) {
+        const roomPayload = {
+          id: room.UserName,
+          avatar: '',
+          external: false,
+          ownerId: '',
+          adminIdList: [] as string[],
+          memberIdList: [] as string[],
+          topic: room.NickName
+        } as Room;
+
+        // async update room payload
+        this.updateRoomPayload(roomPayload);
+
+        this.roomStore.set(room.UserName, roomPayload);
+      }
+
+      log.info(
+        'PuppetBridge',
+        'loadRooms() rooms count %s',
+        this.roomStore.size
+      );
+    } catch (error) {
+      log.error('PuppetBridge', 'loadRooms() exception %s', error.stack);
+    }
+  }
+
   private async onLogin(user: User): Promise<void> {
     log.verbose('PuppetBridge', 'onLogin()');
 
@@ -106,6 +206,13 @@ class PuppetBridge extends PUPPET.Puppet {
     log.info('PuppetBridge', 'onLogin() user %s', jsonStringify(user));
 
     this.userInfo = user;
+
+    // init contacts store
+    await this.loadContacts();
+    // init rooms store
+    await this.loadRooms();
+
+    // login
     this.login(user.userName);
 
     process.nextTick(this.onAgentReady.bind(this));
