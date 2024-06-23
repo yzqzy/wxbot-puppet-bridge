@@ -1,4 +1,5 @@
 import * as PUPPET from 'wechaty-puppet';
+import { FileBoxInterface, FileBox } from 'file-box';
 import { log } from 'wechaty-puppet';
 
 import type {
@@ -14,10 +15,6 @@ import Bridge from '@src/agents/wechatsdk-agent';
 import { jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
-import {
-  ContactPayload,
-  ContactType
-} from 'wechaty-puppet/dist/esm/src/schemas/contact';
 
 const VERSION = '3.9.10.19';
 
@@ -76,6 +73,70 @@ class PuppetBridge extends PUPPET.Puppet {
     }, 1000);
   }
 
+  // contact --------------
+
+  override contactRawPayload(contactId: string): Promise<Contact | null>;
+  override contactRawPayload(contactId: string): Promise<Contact | null> {
+    return new Promise((resolve, reject) => {
+      resolve(this.contactStore.get(contactId) || null);
+    });
+  }
+
+  override contactAlias(contactId: string): Promise<string>;
+  override contactAlias(contactId: string, alias: string | null): Promise<void>;
+  override async contactAlias(
+    contactId: string,
+    alias?: string | null
+  ): Promise<void | string> {
+    log.verbose('PuppetBridge', 'contactAlias(%s, %s)', contactId, alias || '');
+
+    if (!this.isReady) throw new Error('bridge not ready');
+
+    const contact = await this.contactRawPayload(contactId);
+    if (!contact) throw new Error('contact not found');
+
+    if (alias) {
+      throw new Error('not support set alias');
+    }
+
+    return contact.alias;
+  }
+
+  override contactPhone(contactId: string, phoneList: string[]): Promise<void>;
+  override contactPhone(contactId: string, phoneList: string[]): Promise<void> {
+    log.verbose('PuppetBridge', 'contactPhone(%s, %s)', contactId, phoneList);
+
+    throw new Error('not support set phone');
+  }
+
+  override contactList(): Promise<string[]>;
+  override contactList(): Promise<string[]> {
+    log.verbose('PuppetBridge', 'contactList()');
+
+    return this.promiseWrap(() => Array.from(this.contactStore.keys()));
+  }
+
+  override contactAvatar(contactId: string): Promise<FileBoxInterface>;
+  override contactAvatar(
+    contactId: string,
+    file: FileBoxInterface
+  ): Promise<void>;
+  override contactAvatar(
+    contactId: string,
+    file?: FileBoxInterface
+  ): Promise<void | FileBoxInterface> {
+    log.verbose('PuppetBridge', 'contactAvatar(%s, %s)', contactId, file);
+
+    if (file) {
+      throw new Error('not support set avatar');
+    }
+
+    const contact = this.contactStore.get(contactId);
+    if (!contact) throw new Error('contact not found');
+
+    return this.promiseWrap(() => FileBox.fromUrl(contact.avatar));
+  }
+
   async onStart(): Promise<void> {
     log.verbose('PuppetBridge', 'onStart()');
 
@@ -88,6 +149,16 @@ class PuppetBridge extends PUPPET.Puppet {
 
     if (!this.bridge) return;
     this.bridge.stop();
+  }
+
+  private async promiseWrap<T>(fn: () => T): Promise<T> {
+    return new Promise((resolve, reject) => {
+      try {
+        resolve(fn());
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   private bindEvents(): void {
@@ -122,6 +193,23 @@ class PuppetBridge extends PUPPET.Puppet {
     } as EventScan);
   }
 
+  private async updateContactPayload(contact: Contact): Promise<void> {
+    log.verbose('PuppetBridge', 'updateContactPayload()');
+
+    try {
+      const contactInfo = await this.bridge.getContactInfo(contact.id);
+
+      contact.gender = contactInfo.sex;
+      contact.city = contactInfo.city;
+      contact.province = contactInfo.province;
+      contact.address = contactInfo.province + contactInfo.city;
+      contact.alias = contactInfo.alias;
+      contact.signature = contactInfo.signature;
+
+      this.contactStore.set(contact.id, contact);
+    } catch (error) {}
+  }
+
   private async loadContacts(): Promise<void> {
     log.verbose('PuppetBridge', 'loadContacts()');
 
@@ -129,20 +217,19 @@ class PuppetBridge extends PUPPET.Puppet {
       const contacts = await this.bridge.getContactList();
 
       for (const contact of contacts) {
-        let contactType = ContactType.Individual;
+        let contactType = PUPPET.types.Contact.Individual;
 
         if (contact.UserName.startsWith('gh_')) {
-          contactType = ContactType.Official;
+          contactType = PUPPET.types.Contact.Official;
         }
         if (contact.UserName.startsWith('@openim')) {
-          contactType = ContactType.Corporation;
+          contactType = PUPPET.types.Contact.Corporation;
         }
 
         const contactPayload = {
           id: contact.UserName,
           name: contact.NickName,
           type: contactType,
-          alias: contact.Remark,
           friend: true,
           phone: [] as string[],
           avatar: contact.smallHeadImgUrl
@@ -162,7 +249,27 @@ class PuppetBridge extends PUPPET.Puppet {
 
   private async updateRoomPayload(room: Room): Promise<void> {
     log.verbose('PuppetBridge', 'updateRoomPayload()');
-    // TODO: update room payload
+
+    try {
+      const roomInfo = await this.bridge.getChatRoomInfo(room.id);
+      const { profile } = roomInfo;
+      room.avatar = profile.data.smallHeadImgUrl;
+
+      const memebrsData = await this.bridge.getChatRoomMemberList(room.id);
+      const members = memebrsData.members;
+
+      room.ownerId = memebrsData.ownerUserName;
+      room.adminIdList = memebrsData.chatroomAdminUserNames;
+      room.memberIdList = members.map(member => member.userName);
+
+      this.roomStore.set(room.id, room);
+    } catch (error) {
+      log.error(
+        'PuppetBridge',
+        'updateRoomPayload() exception %s',
+        error.stack
+      );
+    }
   }
 
   private async loadRooms(): Promise<void> {
@@ -181,9 +288,6 @@ class PuppetBridge extends PUPPET.Puppet {
           memberIdList: [] as string[],
           topic: room.NickName
         } as Room;
-
-        // async update room payload
-        this.updateRoomPayload(roomPayload);
 
         this.roomStore.set(room.UserName, roomPayload);
       }

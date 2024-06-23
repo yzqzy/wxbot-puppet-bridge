@@ -1,5 +1,14 @@
 import axios from 'axios';
-import { ChatRoom, Contact, Result, User } from './wechatsdk-types';
+import {
+  ChatRoom,
+  ChatRoomInfo,
+  ChatRoomMembers,
+  Contact,
+  ContactInfo,
+  DataResult,
+  Result,
+  User
+} from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
   apiUrl: string;
@@ -46,34 +55,43 @@ class WeChatSdkApi {
   }
 
   userInfo() {
-    return this.reqest.post<{
-      data: User;
-      desc: string;
-      status: number;
-    }>('/api/', { type: 28 });
+    return this.reqest.post<DataResult<User>>('/api/', { type: 28 });
   }
 
   contactList() {
-    return this.reqest.post<{
-      data: Contact[];
-      desc: string;
-      status: number;
-    }>('/api/', {
+    return this.reqest.post<DataResult<Contact[]>>('/api/', {
       type: 10058,
       dbName: 'MicroMsg.db',
-      sql: `SELECT UserName,Remark,NickName,PYInitial,RemarkPYInitial,t2.smallHeadImgUrl FROM Contact t1 LEFT JOIN ContactHeadImgUrl t2 ON t1.UserName = t2.usrName WHERE t1.VerifyFlag = 0 AND (t1.Type = 3 OR t1.Type > 50) and t1.Type != 2050 AND t1.UserName NOT IN ('qmessage', 'tmessage') ORDER BY t1.Remark DESC;`
+      sql: `SELECT UserName,Remark,NickName,PYInitial,RemarkPYInitial,t2.smallHeadImgUrl FROM Contact t1 LEFT JOIN ContactHeadImgUrl t2 ON t1.UserName = t2.usrName WHERE t1.VerifyFlag = 0 AND (t1.Type = 3 OR t1.Type > 50) and t1.Type != 2050 AND t1.UserName NOT IN ('qmessage', 'tmessage') AND t1.UserName NOT LIKE '%chatroom%' ORDER BY t1.Remark DESC;`
+    });
+  }
+
+  contactInfo(userName: string) {
+    return this.reqest.post<DataResult<ContactInfo>>('/api/', {
+      type: 10015,
+      userName
     });
   }
 
   chatroomList() {
-    return this.reqest.post<{
-      data: ChatRoom[];
-      desc: string;
-      status: number;
-    }>('/api/', {
+    return this.reqest.post<DataResult<ChatRoom[]>>('/api/', {
       type: 10058,
       dbName: 'MicroMsg.db',
-      sql: 'SELECT UserName,Remark, NickName,PYInitial,RemarkPYInitial,Type FROM Contact t1 WHERE t1.Type in(2,2050);'
+      sql: `SELECT UserName,Remark, NickName,PYInitial,RemarkPYInitial,Type FROM Contact t1 WHERE t1.Type in(2,2050) OR (t1.Type = 3 AND t1.UserName LIKE '%chatroom%')`
+    });
+  }
+
+  chatroomInfo(userName: string) {
+    return this.reqest.post<DataResult<ChatRoomInfo>>('/api/', {
+      type: 30,
+      chatroomUserName: userName
+    });
+  }
+
+  chatroomMembers(userName: string) {
+    return this.reqest.post<DataResult<ChatRoomMembers>>('/api/', {
+      type: 31,
+      chatroomUserName: userName
     });
   }
 

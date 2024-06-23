@@ -17,6 +17,12 @@ export interface Result<T> {
   robot: Robot;
 }
 
+export interface DataResult<T> {
+  data: T;
+  desc: string;
+  status: number;
+}
+
 export interface RecvResult<T> {
   data: T;
   pushTime: number;
@@ -25,7 +31,7 @@ export interface RecvResult<T> {
   type: number;
 }
 
-export interface ChatRoomMember {
+export interface RecvChatRoomMember {
   belongChatroomNickName: string;
   belongChatroomSmallHeadImgUrl: string;
   belongChatroomUserName: string;
@@ -43,7 +49,7 @@ export interface ChatRoomMember {
 }
 
 export interface RecvMsg {
-  chatroomMemberInfo: ChatRoomMember;
+  chatroomMemberInfo: RecvChatRoomMember;
   content: string;
   createTime: string;
   from: string;
@@ -100,6 +106,27 @@ export interface Contact {
   smallHeadImgUrl: string;
 }
 
+export interface ContactInfo {
+  alias: string;
+  bigHeadImgUrl: string;
+  certFlag: number;
+  city: string;
+  encryptUserName: string;
+  fullpy: string;
+  labelIds: number[];
+  nation: string;
+  nickName: string;
+  province: string;
+  remark: string;
+  reserved1: number;
+  sex: number;
+  signature: string;
+  simplepy: string;
+  smallHeadImgUrl: string;
+  userFlag: number;
+  userName: string;
+}
+
 export interface ChatRoom {
   NickName: string;
   PYInitial: string;
@@ -107,4 +134,45 @@ export interface ChatRoom {
   RemarkPYInitial: string;
   Type: number;
   UserName: string;
+}
+
+export interface ChatRoomInfo {
+  announcement: string;
+  createTime: number;
+  ownerUserName: string;
+  profile: DataResult<{
+    certFlag: number;
+    chatroomAccessType: number;
+    chatroomMaxCount: number;
+    chatroomNotify: number;
+    encryptUserName: string;
+    fullpy: string;
+    nickName: string;
+    remark: string;
+    reserved1: number;
+    sex: number;
+    simplepy: string;
+    smallHeadImgUrl: string;
+    userFlag: number;
+    userName: string;
+  }>;
+}
+
+export interface ChatRoomMember {
+  bigHeadImgUrl: string;
+  chatroomNickName: string;
+  isAdmin: boolean;
+  nickName: string;
+  permission: number;
+  smallHeadImgUrl: string;
+  userName: string;
+}
+
+export interface ChatRoomMembers {
+  chatroomAdminUserNames: string[];
+  chatroomMemberInfoVerion: number;
+  chatroomUserName: string;
+  count: number;
+  members: ChatRoomMember[];
+  ownerUserName: string;
 }

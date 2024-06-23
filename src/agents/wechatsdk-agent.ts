@@ -83,12 +83,43 @@ class Bridge extends EventEmitter {
     return res.data.data;
   }
 
+  async getContactInfo(contactId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.contactInfo(contactId);
+
+    if (res.error_code !== 10000) throw new Error('get contact info failed');
+
+    return res.data.data;
+  }
+
   async getChatRoomList() {
     if (!this.isLoggedIn) throw new Error('user is not logged in');
 
     const res = await this.wechatsdk.chatroomList();
 
     if (res.error_code !== 10000) throw new Error('get chatrooms failed');
+
+    return res.data.data;
+  }
+
+  async getChatRoomInfo(chatroomId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.chatroomInfo(chatroomId);
+
+    if (res.error_code !== 10000) throw new Error('get chatroom info failed');
+
+    return res.data.data;
+  }
+
+  async getChatRoomMemberList(chatroomId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.chatroomMembers(chatroomId);
+
+    if (res.error_code !== 10000)
+      throw new Error('get chatroom members failed');
 
     return res.data.data;
   }
