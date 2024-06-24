@@ -91,9 +91,20 @@ export interface RecvScanMsg extends RecvScanedMsg {
 
 export interface User {
   alias: string;
+  bigHeadImgUrl: string;
+  cachePath: string;
   dbKey: string;
   exePath: string;
-  isLogin: boolean;
+  isLogin: true;
+  nation: string;
+  nickName: string;
+  phone: string;
+  city?: string;
+  province?: string;
+  sex: number;
+  signature: string;
+  smallHeadImgUrl: string;
+  uin: number;
   userName: string;
 }
 

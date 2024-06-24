@@ -1,5 +1,8 @@
 import * as PUPPET from 'wechaty-puppet';
 import { FileBoxInterface, FileBox } from 'file-box';
+import xml2js from 'xml2js';
+import fs from 'fs';
+import fsPromise from 'fs/promises';
 import { log } from 'wechaty-puppet';
 
 import type {
@@ -12,9 +15,10 @@ import type {
 } from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import Bridge from '@src/agents/wechatsdk-agent';
-import { jsonStringify } from '@src/shared/tools';
+import { delaySync, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
+import { getRootPath, imageDecrypt, xmlDecrypt } from '@src/shared';
 
 const VERSION = '3.9.10.19';
 
@@ -31,7 +35,9 @@ class PuppetBridge extends PUPPET.Puppet {
 
   private bridge!: Bridge;
 
-  private userInfo!: User;
+  private userInfo!: Contact;
+
+  private rootPath: string = getRootPath();
 
   // FIXME: use LRU cache for message store so that we can reduce memory usage
   private messageStore = new Map<string, Message>();
@@ -171,14 +177,14 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // message --------------
 
-  override messageContact(messageId: string): Promise<string>;
-  override messageContact(messageId: string): Promise<string> {
-    log.verbose('PuppetBridge', 'messageContact(%s)', messageId);
+  override messageRawPayload(messageId: string): Promise<any>;
+  override messageRawPayload(messageId: string): Promise<any> {
+    log.verbose('PuppetBridge', 'messageRawPayload(%s)', messageId);
 
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    return this.promiseWrap(() => message.talkerId);
+    return this.promiseWrap(() => message);
   }
 
   override messageRawPayloadParser(
@@ -200,6 +206,200 @@ class PuppetBridge extends PUPPET.Puppet {
     if (!message) throw new Error('message not found');
 
     return this.promiseWrap(() => message);
+  }
+
+  override async messageContact(messageId: string): Promise<string>;
+  override async messageContact(messageId: string): Promise<string> {
+    log.verbose('PuppetBridge', 'messageContact(%s)', messageId);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    return await xmlDecrypt(
+      message.text || '',
+      message.type || PUPPET.types.Message.Unknown
+    );
+  }
+
+  override async messageImage(
+    messageId: string,
+    imageType: PUPPET.types.Image
+  ): Promise<FileBoxInterface>;
+  override async messageImage(
+    messageId: string,
+    imageType: PUPPET.types.Image
+  ): Promise<FileBoxInterface> {
+    log.verbose('PuppetBridge', 'messageImage(%s, %s)', messageId, imageType);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    let base64 = '';
+    let fileName = '';
+    let imagePath = '';
+    let file: FileBoxInterface;
+
+    try {
+      if (message?.text) {
+        const picData = JSON.parse(message.text);
+        const filePath = picData[imageType];
+        const dataPath = this.rootPath + filePath;
+
+        let fileExist = fs.existsSync(dataPath);
+        let count = 0;
+        while (!fileExist) {
+          await delaySync(500);
+          fileExist = fs.existsSync(dataPath);
+          if (count > 20) {
+            break;
+          }
+          count++;
+        }
+
+        await fsPromise.access(dataPath);
+
+        const imageInfo = imageDecrypt(dataPath, messageId);
+
+        log.verbose(dataPath, imageInfo.fileName, imageInfo.extension);
+
+        base64 = imageInfo.base64;
+        fileName = `message-${messageId}-url-${imageType}.${imageInfo.extension}`;
+        file = FileBox.fromBase64(base64, fileName);
+
+        const paths = dataPath.split('\\');
+        paths[paths.length - 1] = fileName;
+        imagePath = paths.join('\\');
+
+        log.verbose('图片解密后文件路径：', imagePath, true);
+
+        await file.toFile(imagePath);
+      }
+    } catch (err) {
+      log.error('messageImage fail:', err);
+    }
+    return FileBox.fromBase64(base64, fileName);
+  }
+
+  override messageRecall(messageId: string): Promise<boolean>;
+  override messageRecall(messageId: string): Promise<boolean> {
+    log.verbose('PuppetBridge', 'messageRecall(%s)', messageId);
+
+    throw new Error('not support message recall');
+  }
+
+  override async messageFile(messageId: string): Promise<FileBoxInterface>;
+  override async messageFile(messageId: string): Promise<FileBoxInterface> {
+    log.verbose('PuppetBridge', 'messageFile(%s)', messageId);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    let dataPath = '';
+    let fileName = '';
+
+    if (message?.type === PUPPET.types.Message.Image) {
+      return this.messageImage(messageId, PUPPET.types.Image.Thumbnail);
+    }
+
+    if (message?.type === PUPPET.types.Message.Attachment) {
+      try {
+        const parser = new xml2js.Parser();
+        const messageJson = await parser.parseStringPromise(message.text || '');
+        log.info('解析xml结果', JSON.stringify(messageJson));
+
+        const curDate = new Date();
+        const year = curDate.getFullYear();
+        let month: any = curDate.getMonth() + 1;
+        if (month < 10) {
+          month = '0' + month;
+        }
+
+        fileName = '\\' + messageJson.msg.appmsg[0].title[0];
+        const filePath = `${this.userInfo.id}\\FileStorage\\File\\${year}-${month}`;
+
+        dataPath = this.rootPath + filePath + fileName; // 要解密的文件路径
+        log.info('保存文件路径：', dataPath);
+
+        return FileBox.fromFile(dataPath, fileName);
+      } catch (err) {
+        log.error('保存图片messageFile fail:', err);
+      }
+    }
+
+    if (message?.type === PUPPET.types.Message.Emoticon && message.text) {
+      const text = JSON.parse(message.text);
+      try {
+        try {
+          fileName = text.md5 + '.png';
+          return FileBox.fromUrl(text.cdnurl, { name: fileName });
+        } catch (err) {
+          log.error('messageFile fail:', err);
+        }
+      } catch (err) {
+        log.error('messageFile fail:', err);
+      }
+    }
+
+    if (
+      [PUPPET.types.Message.Video, PUPPET.types.Message.Audio].includes(
+        message?.type || PUPPET.types.Message.Unknown
+      )
+    ) {
+      throw new Error('not support message Video/`Audio');
+    }
+
+    return FileBox.fromFile(dataPath, fileName);
+  }
+
+  override async messageUrl(
+    messageId: string
+  ): Promise<PUPPET.payloads.UrlLink>;
+  override async messageUrl(
+    messageId: string
+  ): Promise<PUPPET.payloads.UrlLink> {
+    log.verbose('PuppetBridge', 'messageUrl(%s)', messageId);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    return await xmlDecrypt(
+      message?.text || '',
+      message?.type || PUPPET.types.Message.Unknown
+    );
+  }
+
+  override async messageMiniProgram(
+    messageId: string
+  ): Promise<PUPPET.payloads.MiniProgram>;
+  override async messageMiniProgram(
+    messageId: string
+  ): Promise<PUPPET.payloads.MiniProgram> {
+    log.verbose('PuppetBridge', 'messageMiniProgram(%s)', messageId);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    return await xmlDecrypt(
+      message?.text || '',
+      message?.type || PUPPET.types.Message.Unknown
+    );
+  }
+
+  override async messageLocation(
+    messageId: string
+  ): Promise<PUPPET.payloads.Location>;
+  override async messageLocation(
+    messageId: string
+  ): Promise<PUPPET.payloads.Location> {
+    log.verbose('PuppetBridge', 'messageLocation(%s)', messageId);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    return await xmlDecrypt(
+      message?.text || '',
+      message?.type || PUPPET.types.Message.Unknown
+    );
   }
 
   // core --------------
@@ -376,7 +576,21 @@ class PuppetBridge extends PUPPET.Puppet {
 
     log.info('PuppetBridge', 'onLogin() user %s', jsonStringify(user));
 
-    this.userInfo = user;
+    const userPayload = {
+      id: user.userName,
+      gender: user.sex,
+      type: PUPPET.types.Contact.Individual,
+      name: user.nickName,
+      alias: user.alias,
+      friend: false,
+      city: user.city,
+      province: user.province,
+      signature: user.signature,
+      phone: [user.phone],
+      avatar: user.smallHeadImgUrl || user.bigHeadImgUrl
+    } as Contact;
+
+    this.userInfo = userPayload;
 
     // init contacts store
     await this.loadContacts();
@@ -384,7 +598,7 @@ class PuppetBridge extends PUPPET.Puppet {
     await this.loadRooms();
 
     // login
-    this.login(user.userName);
+    this.login(userPayload.id);
 
     process.nextTick(this.onAgentReady.bind(this));
   }

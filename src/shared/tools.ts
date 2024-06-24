@@ -8,3 +8,10 @@ export const isJsonString = (str: string) => {
     return false;
   }
 };
+
+export const delay = (ms: number) =>
+  new Promise(resolve => setTimeout(resolve, ms));
+
+export const delaySync = async (ms: number) => {
+  await delay(ms);
+};
