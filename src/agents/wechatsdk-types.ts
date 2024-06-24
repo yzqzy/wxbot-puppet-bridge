@@ -67,7 +67,7 @@ export interface RecvMsg {
     verifyFlag: string;
   };
   to: string;
-  type: number;
+  type: LosslessNumber;
 }
 
 interface RecvScanedMsg {

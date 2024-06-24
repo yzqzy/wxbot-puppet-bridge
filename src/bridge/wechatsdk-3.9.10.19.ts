@@ -75,6 +75,17 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // contact --------------
 
+  override contactRawPayloadParser(
+    rawPayload: any
+  ): Promise<PUPPET.payloads.Contact>;
+  override contactRawPayloadParser(
+    rawPayload: any
+  ): Promise<PUPPET.payloads.Contact> {
+    return this.promiseWrap(() => {
+      return rawPayload;
+    });
+  }
+
   override contactRawPayload(contactId: string): Promise<Contact | null>;
   override contactRawPayload(contactId: string): Promise<Contact | null> {
     return new Promise((resolve, reject) => {
@@ -136,6 +147,62 @@ class PuppetBridge extends PUPPET.Puppet {
 
     return this.promiseWrap(() => FileBox.fromUrl(contact.avatar));
   }
+
+  // room --------------
+
+  override roomPayload(roomId: string): Promise<PUPPET.payloads.Room> {
+    log.verbose('PuppetBridge', 'roomPayload(%s)', roomId);
+
+    const room = this.roomStore.get(roomId);
+    if (!room) throw new Error('room not found');
+
+    return this.promiseWrap(() => room);
+  }
+
+  override roomMemberList(roomId: string): Promise<string[]>;
+  override roomMemberList(roomId: string): Promise<string[]> {
+    log.verbose('PuppetBridge', 'roomMemberList(%s)', roomId);
+
+    const room = this.roomStore.get(roomId);
+    if (!room) throw new Error('room not found');
+
+    return this.promiseWrap(() => room.memberIdList);
+  }
+
+  // message --------------
+
+  override messageContact(messageId: string): Promise<string>;
+  override messageContact(messageId: string): Promise<string> {
+    log.verbose('PuppetBridge', 'messageContact(%s)', messageId);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    return this.promiseWrap(() => message.talkerId);
+  }
+
+  override messageRawPayloadParser(
+    rawPayload: any
+  ): Promise<PUPPET.payloads.Message>;
+  override messageRawPayloadParser(
+    rawPayload: any
+  ): Promise<PUPPET.payloads.Message> {
+    return this.promiseWrap(() => {
+      return rawPayload;
+    });
+  }
+
+  override messagePayload(messageId: string): Promise<PUPPET.payloads.Message>;
+  override messagePayload(messageId: string): Promise<PUPPET.payloads.Message> {
+    log.verbose('PuppetBridge', 'messagePayload(%s)', messageId);
+
+    const message = this.messageStore.get(messageId);
+    if (!message) throw new Error('message not found');
+
+    return this.promiseWrap(() => message);
+  }
+
+  // core --------------
 
   async onStart(): Promise<void> {
     log.verbose('PuppetBridge', 'onStart()');
@@ -363,17 +430,20 @@ class PuppetBridge extends PUPPET.Puppet {
   }
   private async msgHandler(message: RecvMsg): Promise<void> {
     const payload = {
-      type: message.type,
-      id: message.msgSvrID,
-      messageId: message?.msgSvrID?.toString(),
+      type: Number(message.type),
+      id: message?.msgSvrID.toString(),
       talkerId: message?.talkerInfo?.userName,
       text: message.content,
+      listenerId: message.to,
       timestamp: Date.now(),
       fromId: message.from,
       toId: message.to,
       roomId: message.isChatroomMsg ? message.from : ''
-    } as EventMessage;
-    this.emit('message', payload);
+    } as Message;
+
+    this.messageStore.set(payload.id, payload);
+
+    this.emit('message', { messageId: payload.id } as EventMessage);
   }
 
   private async onMessage(message: RecvMsg | RecvScanMsg): Promise<void> {

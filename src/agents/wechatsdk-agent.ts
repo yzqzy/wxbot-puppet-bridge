@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import express from 'express';
 import { WebSocketServer } from 'ws';
+import { parse as parseJson } from 'lossless-json';
 import { log } from 'wechaty-puppet';
 
 import EnvVars from '@src/config/EnvVars';
@@ -133,7 +134,26 @@ class Bridge extends EventEmitter {
   private createHttpServer() {
     const app = express();
 
-    app.use(express.json());
+    app.use(async (req, res, next) => {
+      let body = '';
+
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+
+      req.on('end', async () => {
+        try {
+          if (isJsonString(body)) {
+            req.body = parseJson(body) as Result<RecvMsg>;
+          }
+        } catch (error) {
+          log.error('handle recv msg failed', error);
+          res.status(400).send('invalid request body');
+        }
+
+        next();
+      });
+    });
 
     app.post('/api/msg/recv', async (req, res) => {
       try {
@@ -175,7 +195,7 @@ class Bridge extends EventEmitter {
         try {
           const dataStr = data.toString();
           if (!isJsonString(dataStr)) return;
-          await this.handleRecvMsg(JSON.parse(dataStr));
+          await this.handleRecvMsg(parseJson(dataStr) as Result<RecvMsg>);
         } catch (error) {
           log.error('handle recv msg failed', error);
         }
