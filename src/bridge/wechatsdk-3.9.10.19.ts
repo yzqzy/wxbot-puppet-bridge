@@ -11,6 +11,7 @@ import type {
   EventMessage,
   Message,
   Room,
+  RoomMember,
   Contact
 } from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
@@ -28,6 +29,10 @@ interface PuppetOptions extends PUPPET.PuppetOptions {
   protocol?: BridgeProtocol;
 }
 
+interface PuppetRoom extends Room {
+  members: RoomMember[];
+}
+
 class PuppetBridge extends PUPPET.Puppet {
   static override readonly VERSION = VERSION;
 
@@ -42,7 +47,7 @@ class PuppetBridge extends PUPPET.Puppet {
   // FIXME: use LRU cache for message store so that we can reduce memory usage
   private messageStore = new Map<string, Message>();
   private contactStore = new Map<string, Contact>();
-  private roomStore = new Map<string, Room>();
+  private roomStore = new Map<string, PuppetRoom>();
 
   constructor(
     options: PuppetOptions = {
@@ -165,6 +170,52 @@ class PuppetBridge extends PUPPET.Puppet {
     return this.promiseWrap(() => room);
   }
 
+  override roomRawPayloadParser(
+    rawPayload: any
+  ): Promise<PUPPET.payloads.Room> {
+    return this.promiseWrap(() => {
+      return rawPayload;
+    });
+  }
+  override roomRawPayload(roomId: string): Promise<any> {
+    log.verbose('PuppetBridge', 'roomRawPayload(%s)', roomId);
+
+    const room = this.roomStore.get(roomId);
+    if (!room) throw new Error('room not found');
+
+    return this.promiseWrap(() => room);
+  }
+
+  override roomSearch(
+    query?: PUPPET.filters.Room | undefined
+  ): Promise<string[]> {
+    log.verbose('PuppetBridge', 'roomSearch(%s)', query);
+
+    const roomIdList = Array.from(this.roomStore.keys());
+    const roomList = Array.from(this.roomStore.values());
+
+    let rooms: string[] = [];
+
+    if (typeof query === 'object') {
+      if (query.id) {
+        rooms = roomIdList.filter(id => id === query.id);
+      } else if (query.topic) {
+        rooms = roomIdList.filter(id =>
+          roomList.find(room => room.topic === query.topic)
+        );
+      }
+    }
+
+    return this.promiseWrap(() => rooms);
+  }
+
+  override roomList(): Promise<string[]>;
+  override roomList(): Promise<string[]> {
+    log.verbose('PuppetBridge', 'roomList()');
+
+    return this.promiseWrap(() => Array.from(this.roomStore.keys()));
+  }
+
   override roomMemberList(roomId: string): Promise<string[]>;
   override roomMemberList(roomId: string): Promise<string[]> {
     log.verbose('PuppetBridge', 'roomMemberList(%s)', roomId);
@@ -173,6 +224,93 @@ class PuppetBridge extends PUPPET.Puppet {
     if (!room) throw new Error('room not found');
 
     return this.promiseWrap(() => room.memberIdList);
+  }
+  override roomMemberPayload(
+    roomId: string,
+    memberId: string
+  ): Promise<PUPPET.payloads.RoomMember>;
+  override roomMemberPayload(
+    roomId: string,
+    memberId: string
+  ): Promise<PUPPET.payloads.RoomMember> {
+    log.verbose('PuppetBridge', 'roomMemberPayload(%s, %s)', roomId, memberId);
+
+    const room = this.roomStore.get(roomId);
+    if (!room) throw new Error('room not found');
+
+    const member = room.members.find(member => member.id === memberId);
+    if (!member) throw new Error('member not found');
+
+    return this.promiseWrap(() => member);
+  }
+
+  override roomMemberRawPayloadParser(
+    rawPayload: any
+  ): Promise<PUPPET.payloads.RoomMember>;
+  override roomMemberRawPayloadParser(
+    rawPayload: any
+  ): Promise<PUPPET.payloads.RoomMember> {
+    return this.promiseWrap(() => {
+      return rawPayload;
+    });
+  }
+  override roomMemberRawPayload(
+    roomId: string,
+    contactId: string
+  ): Promise<any>;
+  override roomMemberRawPayload(
+    roomId: string,
+    contactId: string
+  ): Promise<any> {
+    log.verbose(
+      'PuppetBridge',
+      'roomMemberRawPayload(%s, %s)',
+      roomId,
+      contactId
+    );
+
+    const room = this.roomStore.get(roomId);
+    if (!room) throw new Error('room not found');
+
+    const member = room.members.find(member => member.id === contactId);
+    if (!member) throw new Error('member not found');
+
+    return this.promiseWrap(() => member);
+  }
+
+  override roomMemberSearch(
+    roomId: string,
+    query: string | symbol | PUPPET.filters.RoomMember
+  ): Promise<string[]>;
+  override roomMemberSearch(
+    roomId: string,
+    query: string | symbol | PUPPET.filters.RoomMember
+  ): Promise<string[]> {
+    log.verbose('PuppetBridge', 'roomMemberSearch(%s, %s)', roomId, query);
+
+    const room = this.roomStore.get(roomId);
+    if (!room) throw new Error('room not found');
+
+    const memberIdList = room.memberIdList;
+    const memberList = room.members;
+
+    let members: string[] = [];
+
+    if (typeof query === 'function') {
+      members = memberIdList.filter(query);
+    } else if (typeof query === 'object') {
+      if (query.name) {
+        members = memberIdList.filter(() =>
+          memberList.find(member => member.name === query.name)
+        );
+      }
+    } else if (typeof query === 'string') {
+      members = memberIdList.filter(() =>
+        memberList.find(member => member.name === query)
+      );
+    }
+
+    return this.promiseWrap(() => members);
   }
 
   // message --------------
@@ -501,7 +639,11 @@ class PuppetBridge extends PUPPET.Puppet {
           phone: [] as string[],
           avatar: contact.smallHeadImgUrl
         } as Contact;
+
         this.contactStore.set(contact.UserName, contactPayload);
+
+        // async update contact payload
+        this.updateContactPayload(contactPayload);
       }
 
       log.info(
@@ -514,11 +656,14 @@ class PuppetBridge extends PUPPET.Puppet {
     }
   }
 
-  private async updateRoomPayload(room: Room): Promise<void> {
+  private async updateRoomPayload(room: PuppetRoom): Promise<void> {
     log.verbose('PuppetBridge', 'updateRoomPayload()');
 
     try {
       const roomInfo = await this.bridge.getChatRoomInfo(room.id);
+
+      if (!roomInfo) return;
+
       const { profile } = roomInfo;
       room.avatar = profile.data.smallHeadImgUrl;
 
@@ -528,6 +673,13 @@ class PuppetBridge extends PUPPET.Puppet {
       room.ownerId = memebrsData.ownerUserName;
       room.adminIdList = memebrsData.chatroomAdminUserNames;
       room.memberIdList = members.map(member => member.userName);
+      room.members = members.map(member => {
+        return {
+          id: member.userName,
+          name: member.nickName,
+          avatar: member.smallHeadImgUrl || member.bigHeadImgUrl
+        } as RoomMember;
+      });
 
       this.roomStore.set(room.id, room);
     } catch (error) {
@@ -553,10 +705,14 @@ class PuppetBridge extends PUPPET.Puppet {
           ownerId: '',
           adminIdList: [] as string[],
           memberIdList: [] as string[],
+          members: [] as RoomMember[],
           topic: room.NickName
-        } as Room;
+        } as PuppetRoom;
 
         this.roomStore.set(room.UserName, roomPayload);
+
+        // async update room payload
+        this.updateRoomPayload(roomPayload);
       }
 
       log.info(
@@ -644,7 +800,7 @@ class PuppetBridge extends PUPPET.Puppet {
   }
   private async msgHandler(message: RecvMsg): Promise<void> {
     const payload = {
-      type: Number(message.type),
+      type: message.type ? Number(message.type) : PUPPET.types.Message.Unknown,
       id: message?.msgSvrID.toString(),
       talkerId: message?.talkerInfo?.userName,
       text: message.content,
