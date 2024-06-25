@@ -8,7 +8,8 @@ import {
   DataResult,
   MessageResult,
   Result,
-  User
+  User,
+  LocationParams
 } from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
@@ -167,6 +168,13 @@ class WeChatSdkApi {
       userName,
       content
     });
+  }
+
+  sendLocation(location: LocationParams) {
+    return this.reqest.post<MessageResult>(
+      '/api/',
+      Object.assign({ type: 10022 }, location)
+    );
   }
 
   hook(protocol: number, url: string) {

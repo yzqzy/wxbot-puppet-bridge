@@ -193,3 +193,13 @@ export interface ChatRoomMembers {
   members: ChatRoomMember[];
   ownerUserName: string;
 }
+
+export interface LocationParams {
+  userName: string;
+  longitude: number;
+  latitude: number;
+  label: string;
+  poiName: string;
+  poiId: string;
+  isFromPoiList: boolean;
+}

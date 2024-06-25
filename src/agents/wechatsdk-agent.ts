@@ -7,7 +7,7 @@ import { log } from 'wechaty-puppet';
 import EnvVars from '@src/config/EnvVars';
 import { decodeQRCode } from '@src/shared/qrcode';
 
-import type { RecvMsg, Result } from './wechatsdk-types';
+import type { LocationParams, RecvMsg, Result } from './wechatsdk-types';
 import WeChatSdkApi from './wechatsdk-api';
 import { isJsonString } from '@src/shared';
 import { killPort } from '@src/shared/port';
@@ -213,6 +213,16 @@ class Bridge extends EventEmitter {
     const res = await this.wechatsdk.sendLink(contactId, content);
 
     if (res.error_code !== 10000) throw new Error('send link msg failed');
+
+    return res.data;
+  }
+
+  async sendLocation(location: LocationParams) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendLocation(location);
+
+    if (res.error_code !== 10000) throw new Error('send location failed');
 
     return res.data;
   }
