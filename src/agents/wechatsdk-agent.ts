@@ -125,6 +125,98 @@ class Bridge extends EventEmitter {
     return res.data.data;
   }
 
+  async sendTextMsg(contactId: string, text: string, atContactIds?: string[]) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendText(contactId, text, atContactIds);
+
+    if (res.error_code !== 10000) throw new Error('send text msg failed');
+
+    return res.data;
+  }
+
+  async sendImageMsg(contactId: string, image: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendImage(contactId, image);
+
+    if (res.error_code !== 10000) throw new Error('send image msg failed');
+
+    return res.data;
+  }
+
+  async sendFileMsg(contactId: string, file: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendFile(contactId, file);
+
+    if (res.error_code !== 10000) throw new Error('send file msg failed');
+
+    return res.data;
+  }
+
+  async sendContactMsg(contactId: string, contactId2: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendContact(contactId, contactId2);
+
+    if (res.error_code !== 10000) throw new Error('send contact msg failed');
+
+    return res.data;
+  }
+
+  async sendPublicAccountMsg(contactId: string, contactId2: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendPublicAccount(contactId, contactId2);
+
+    if (res.error_code !== 10000)
+      throw new Error('send public account msg failed');
+
+    return res.data;
+  }
+
+  async sendBusinessCardMsg(contactId: string, contactId2: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendBusinessUsers(contactId, contactId2);
+
+    if (res.error_code !== 10000)
+      throw new Error('send business card msg failed');
+
+    return res.data;
+  }
+
+  async sendPatMsg(contactId: string, contactId2: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendPat(contactId, contactId2);
+
+    if (res.error_code !== 10000) throw new Error('send pat msg failed');
+
+    return res.data;
+  }
+
+  async sendEmojiMsg(contactId: string, emoji: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendEmoji(contactId, emoji);
+
+    if (res.error_code !== 10000) throw new Error('send emoji msg failed');
+
+    return res.data;
+  }
+
+  async sendLinkMsg(contactId: string, content: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendLink(contactId, content);
+
+    if (res.error_code !== 10000) throw new Error('send link msg failed');
+
+    return res.data;
+  }
+
   private catchErrors() {
     process.on('uncaughtException', this.stop.bind(this));
     process.on('SIGINT', this.stop.bind(this));

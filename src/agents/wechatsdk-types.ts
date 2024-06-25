@@ -23,6 +23,12 @@ export interface DataResult<T> {
   status: number;
 }
 
+export interface MessageResult {
+  desc: string;
+  status: number;
+  msgSvrID: LosslessNumber;
+}
+
 export interface RecvResult<T> {
   data: T;
   pushTime: number;

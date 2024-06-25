@@ -6,6 +6,7 @@ import {
   Contact,
   ContactInfo,
   DataResult,
+  MessageResult,
   Result,
   User
 } from './wechatsdk-types';
@@ -92,6 +93,79 @@ class WeChatSdkApi {
     return this.reqest.post<DataResult<ChatRoomMembers>>('/api/', {
       type: 31,
       chatroomUserName: userName
+    });
+  }
+
+  sendText(userName: string, content: string, atUserList: string[] = []) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10009,
+      userName,
+      msgContent: content,
+      atUserList
+    });
+  }
+
+  sendImage(userName: string, filePath: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10010,
+      userName,
+      filePath
+    });
+  }
+
+  sendFile(userName: string, filePath: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10012,
+      userName,
+      filePath
+    });
+  }
+
+  sendContact(userName: string, beSharedUserName: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10037,
+      userName,
+      beSharedUserName
+    });
+  }
+
+  sendPublicAccount(userName: string, bizUserName: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10107,
+      userName,
+      bizUserName
+    });
+  }
+
+  sendBusinessUsers(userName: string, openimUserName: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10110,
+      userName,
+      openimUserName
+    });
+  }
+
+  sendPat(userName: string, chatroomUserName: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 57,
+      userName,
+      chatroomUserName
+    });
+  }
+
+  sendEmoji(userName: string, emojiPath: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10011,
+      userName,
+      emojiPath
+    });
+  }
+
+  sendLink(userName: string, content: string) {
+    return this.reqest.post<MessageResult>('/api/', {
+      type: 10092,
+      userName,
+      content
     });
   }
 
