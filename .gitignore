@@ -19,3 +19,6 @@ dist/
 
 # Local env files
 .env
+
+# Download files
+downloads/

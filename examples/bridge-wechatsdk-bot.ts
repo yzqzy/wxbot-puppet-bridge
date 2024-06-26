@@ -1,7 +1,8 @@
-import { WechatyBuilder, ScanStatus, Message, log } from 'wechaty';
+import { WechatyBuilder, ScanStatus, Message, log, types } from 'wechaty';
 import qrTerm from 'qrcode-terminal';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
+import { createDir } from '@src/shared';
 
 async function main() {
   const puppet = new PuppetBridge({
@@ -35,22 +36,62 @@ async function main() {
     log.info('Bot is ready');
   });
 
-  bot.on('message', async (message: Message) => {
-    log.info('Bot Message: ', jsonStringify(message));
+  const basePath = 'examples/media';
 
-    const type = message.type();
-    log.info('Bot Message Type: ', type);
+  bot.on('message', async (msg: Message) => {
+    log.info('Bot Msg: ', jsonStringify(msg));
 
-    const contact = message.talker();
-    log.info('Bot Message Contact: ', jsonStringify(contact));
+    const contact = msg.talker();
+    log.info('Bot Msg Contact: ', jsonStringify(contact));
 
-    const room = message.room();
-    log.info('Bot Message Room: ', jsonStringify(room));
+    const room = msg.room();
+    log.info('Bot Msg Room: ', jsonStringify(room));
 
     if (room) {
-      log.info('Bot Message Room Topic: ', await room.topic());
-      log.info('Bot Message Room Member: ', await room.memberAll());
-      log.info('Bot Message Room Owner: ', room.owner()?.name);
+      log.info('Bot Msg Room Topic: ', await room.topic());
+      log.info('Bot Msg Room Member: ', await room.memberAll());
+      log.info('Bot Msg Room Owner: ', room.owner()?.name);
+    }
+
+    if (msg.text() === 'ding') {
+      await msg.say(`dong ${Date.now()}`);
+      log.info('Bot say dong');
+    } else if (['ding_room', 'ding_room_@', 'ding_room_@all'].some(t => msg.text().includes(t))) {
+      if (!room) return;
+      await room.say(`dong ${Date.now()}`);
+      log.info('Bot say dong in room');
+    }
+
+    let filePath = 'downloads';
+    createDir(filePath);
+
+    try {
+      const type = msg.type();
+
+      log.info('Bot Msg Type: ', type);
+
+      if (
+        [types.Message.Image, types.Message.Video, types.Message.Audio, types.Message.Emoticon].some(t => t === type)
+      ) {
+        let file;
+
+        if (type === types.Message.Image) {
+          file = await msg.toImage().thumbnail();
+        } else {
+          file = await msg.toFileBox();
+        }
+
+        filePath = `${filePath}/${file.name}`;
+
+        try {
+          await file.toFile(filePath, true);
+          log.info('Bot download file success:', filePath);
+        } catch (error) {
+          log.error('Bot download file error:', error.message);
+        }
+      }
+    } catch (error) {
+      log.error('Bot get file error:', error.message);
     }
   });
 
