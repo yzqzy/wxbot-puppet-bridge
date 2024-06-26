@@ -9,7 +9,8 @@ import {
   MessageResult,
   Result,
   User,
-  LocationParams
+  LocationParams,
+  NormalResult
 } from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
@@ -94,6 +95,83 @@ class WeChatSdkApi {
     return this.reqest.post<DataResult<ChatRoomMembers>>('/api/', {
       type: 31,
       chatroomUserName: userName
+    });
+  }
+
+  createChatRoom(userNames: string[]) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 45,
+      userNames
+    });
+  }
+
+  destoryChatRoom(chatroomUserName: string) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 52,
+      chatroomUserName
+    });
+  }
+
+  transferChatRoomOwner(userName: string, chatroomUserName: string) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 51,
+      userName,
+      chatroomUserName
+    });
+  }
+
+  exitChatRooom(chatroomUserName: string) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 10028,
+      chatroomUserName
+    });
+  }
+
+  modifyChatRoomName(chatroomUserName: string, chatroomName: string) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 10023,
+      chatroomUserName,
+      chatroomName
+    });
+  }
+
+  deleteChatRoomMembers(chatroomUserName: string, userNames: string[]) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 33,
+      chatroomUserName,
+      userNames
+    });
+  }
+
+  addChatRoomMembers(chatroomUserName: string, userNames: string[]) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 32,
+      chatroomUserName,
+      userNames
+    });
+  }
+
+  inviteChatRoomMembers(chatroomUserName: string, userNames: string[]) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 79,
+      chatroomUserName,
+      userNames
+    });
+  }
+
+  addChatRoomManager(userName: string, chatroomUserName: string) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 49,
+      userName,
+      chatroomUserName
+    });
+  }
+
+  deleteChatRoomManager(userName: string, chatroomUserName: string) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 50,
+      userName,
+      chatroomUserName
     });
   }
 

@@ -17,15 +17,16 @@ export interface Result<T> {
   robot: Robot;
 }
 
-export interface DataResult<T> {
-  data: T;
+export interface NormalResult {
   desc: string;
   status: number;
 }
 
-export interface MessageResult {
-  desc: string;
-  status: number;
+export interface DataResult<T> extends NormalResult {
+  data: T;
+}
+
+export interface MessageResult extends NormalResult {
   msgSvrID: LosslessNumber;
 }
 
