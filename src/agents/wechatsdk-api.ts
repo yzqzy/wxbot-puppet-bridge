@@ -171,10 +171,7 @@ class WeChatSdkApi {
   }
 
   sendLocation(location: LocationParams) {
-    return this.reqest.post<MessageResult>(
-      '/api/',
-      Object.assign({ type: 10022 }, location)
-    );
+    return this.reqest.post<MessageResult>('/api/', Object.assign({ type: 10022 }, location));
   }
 
   hook(protocol: number, url: string) {

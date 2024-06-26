@@ -119,8 +119,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.chatroomMembers(chatroomId);
 
-    if (res.error_code !== 10000)
-      throw new Error('get chatroom members failed');
+    if (res.error_code !== 10000) throw new Error('get chatroom members failed');
 
     return res.data.data;
   }
@@ -170,8 +169,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendPublicAccount(contactId, contactId2);
 
-    if (res.error_code !== 10000)
-      throw new Error('send public account msg failed');
+    if (res.error_code !== 10000) throw new Error('send public account msg failed');
 
     return res.data;
   }
@@ -181,8 +179,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendBusinessUsers(contactId, contactId2);
 
-    if (res.error_code !== 10000)
-      throw new Error('send business card msg failed');
+    if (res.error_code !== 10000) throw new Error('send business card msg failed');
 
     return res.data;
   }

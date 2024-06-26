@@ -5,15 +5,7 @@ import fs from 'fs';
 import fsPromise from 'fs/promises';
 import { log } from 'wechaty-puppet';
 
-import type {
-  EventError,
-  EventScan,
-  EventMessage,
-  Message,
-  Room,
-  RoomMember,
-  Contact
-} from 'wechaty-puppet/payloads';
+import type { EventError, EventScan, EventMessage, Message, Room, RoomMember, Contact } from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import Bridge from '@src/agents/wechatsdk-agent';
 import { delaySync, jsonStringify } from '@src/shared/tools';
@@ -32,6 +24,7 @@ interface PuppetOptions extends PUPPET.PuppetOptions {
 interface PuppetRoom extends Room {
   members: RoomMember[];
 }
+interface PuppetContact extends Contact {}
 
 class PuppetBridge extends PUPPET.Puppet {
   static override readonly VERSION = VERSION;
@@ -46,7 +39,7 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // FIXME: use LRU cache for message store so that we can reduce memory usage
   private messageStore = new Map<string, Message>();
-  private contactStore = new Map<string, Contact>();
+  private contactStore = new Map<string, PuppetContact>();
   private roomStore = new Map<string, PuppetRoom>();
 
   constructor(
@@ -86,12 +79,8 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // contact --------------
 
-  override contactRawPayloadParser(
-    rawPayload: any
-  ): Promise<PUPPET.payloads.Contact>;
-  override contactRawPayloadParser(
-    rawPayload: any
-  ): Promise<PUPPET.payloads.Contact> {
+  override contactRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Contact>;
+  override contactRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Contact> {
     return this.promiseWrap(() => {
       return rawPayload;
     });
@@ -99,17 +88,13 @@ class PuppetBridge extends PUPPET.Puppet {
 
   override contactRawPayload(contactId: string): Promise<Contact | null>;
   override contactRawPayload(contactId: string): Promise<Contact | null> {
-    return new Promise((resolve, reject) => {
-      resolve(this.contactStore.get(contactId) || null);
-    });
+    log.verbose('PuppetBridge', 'contactRawPayload(%s)', contactId);
+    return this.promiseWrap(() => this.contactStore.get(contactId) || null);
   }
 
   override contactAlias(contactId: string): Promise<string>;
   override contactAlias(contactId: string, alias: string | null): Promise<void>;
-  override async contactAlias(
-    contactId: string,
-    alias?: string | null
-  ): Promise<void | string> {
+  override async contactAlias(contactId: string, alias?: string | null): Promise<void | string> {
     log.verbose('PuppetBridge', 'contactAlias(%s, %s)', contactId, alias || '');
 
     if (!this.isReady) throw new Error('bridge not ready');
@@ -139,14 +124,8 @@ class PuppetBridge extends PUPPET.Puppet {
   }
 
   override contactAvatar(contactId: string): Promise<FileBoxInterface>;
-  override contactAvatar(
-    contactId: string,
-    file: FileBoxInterface
-  ): Promise<void>;
-  override contactAvatar(
-    contactId: string,
-    file?: FileBoxInterface
-  ): Promise<void | FileBoxInterface> {
+  override contactAvatar(contactId: string, file: FileBoxInterface): Promise<void>;
+  override contactAvatar(contactId: string, file?: FileBoxInterface): Promise<void | FileBoxInterface> {
     log.verbose('PuppetBridge', 'contactAvatar(%s, %s)', contactId, file);
 
     if (file) {
@@ -161,34 +140,43 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // room --------------
 
-  override roomPayload(roomId: string): Promise<PUPPET.payloads.Room> {
-    log.verbose('PuppetBridge', 'roomPayload(%s)', roomId);
-
-    const room = this.roomStore.get(roomId);
-    if (!room) throw new Error('room not found');
-
-    return this.promiseWrap(() => room);
-  }
-
-  override roomRawPayloadParser(
-    rawPayload: any
-  ): Promise<PUPPET.payloads.Room> {
+  override roomRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Room> {
+    log.verbose('PuppetBridge', 'roomRawPayloadParser(%s)', JSON.stringify(rawPayload));
     return this.promiseWrap(() => {
       return rawPayload;
     });
   }
   override roomRawPayload(roomId: string): Promise<any> {
     log.verbose('PuppetBridge', 'roomRawPayload(%s)', roomId);
-
-    const room = this.roomStore.get(roomId);
-    if (!room) throw new Error('room not found');
-
-    return this.promiseWrap(() => room);
+    return this.promiseWrap(() => this.roomStore.get(roomId));
   }
 
-  override roomSearch(
-    query?: PUPPET.filters.Room | undefined
-  ): Promise<string[]> {
+  override roomPayload(roomId: string): Promise<PUPPET.payloads.Room>;
+  override roomPayload(roomId: string): Promise<PUPPET.payloads.Room | null>;
+  override roomPayload(roomId: string): Promise<PUPPET.payloads.Room | null> {
+    log.verbose('PuppetBridge', 'roomPayload(%s)', roomId);
+    return this.promiseWrap(() => this.roomStore.get(roomId) || null);
+  }
+
+  override async roomTopic(roomId: string): Promise<string>;
+  override async roomTopic(roomId: string, topic: string): Promise<void>;
+  override async roomTopic(roomId: unknown, topic?: unknown): Promise<void | string> {
+    log.verbose('PuppetBridge', 'roomTopic(%s, %s)', roomId, topic || '');
+
+    log.error('roomTopic not support', roomId, topic);
+
+    if (typeof roomId !== 'string') return this.promiseWrap(() => '');
+
+    const payload = await this.roomPayload(roomId);
+
+    if (!topic) {
+      return payload.topic;
+    } else {
+      return payload.topic;
+    }
+  }
+
+  override roomSearch(query?: PUPPET.filters.Room | undefined): Promise<string[]> {
     log.verbose('PuppetBridge', 'roomSearch(%s)', query);
 
     const roomIdList = Array.from(this.roomStore.keys());
@@ -200,9 +188,7 @@ class PuppetBridge extends PUPPET.Puppet {
       if (query.id) {
         rooms = roomIdList.filter(id => id === query.id);
       } else if (query.topic) {
-        rooms = roomIdList.filter(id =>
-          roomList.find(room => room.topic === query.topic)
-        );
+        rooms = roomIdList.filter(id => roomList.find(room => room.topic === query.topic));
       }
     }
 
@@ -212,7 +198,6 @@ class PuppetBridge extends PUPPET.Puppet {
   override roomList(): Promise<string[]>;
   override roomList(): Promise<string[]> {
     log.verbose('PuppetBridge', 'roomList()');
-
     return this.promiseWrap(() => Array.from(this.roomStore.keys()));
   }
 
@@ -221,18 +206,12 @@ class PuppetBridge extends PUPPET.Puppet {
     log.verbose('PuppetBridge', 'roomMemberList(%s)', roomId);
 
     const room = this.roomStore.get(roomId);
-    if (!room) throw new Error('room not found');
+    if (!room) return this.promiseWrap(() => []);
 
     return this.promiseWrap(() => room.memberIdList);
   }
-  override roomMemberPayload(
-    roomId: string,
-    memberId: string
-  ): Promise<PUPPET.payloads.RoomMember>;
-  override roomMemberPayload(
-    roomId: string,
-    memberId: string
-  ): Promise<PUPPET.payloads.RoomMember> {
+  override roomMemberPayload(roomId: string, memberId: string): Promise<PUPPET.payloads.RoomMember>;
+  override roomMemberPayload(roomId: string, memberId: string): Promise<PUPPET.payloads.RoomMember> {
     log.verbose('PuppetBridge', 'roomMemberPayload(%s, %s)', roomId, memberId);
 
     const room = this.roomStore.get(roomId);
@@ -244,48 +223,27 @@ class PuppetBridge extends PUPPET.Puppet {
     return this.promiseWrap(() => member);
   }
 
-  override roomMemberRawPayloadParser(
-    rawPayload: any
-  ): Promise<PUPPET.payloads.RoomMember>;
-  override roomMemberRawPayloadParser(
-    rawPayload: any
-  ): Promise<PUPPET.payloads.RoomMember> {
+  override roomMemberRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.RoomMember>;
+  override roomMemberRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.RoomMember> {
     return this.promiseWrap(() => {
       return rawPayload;
     });
   }
-  override roomMemberRawPayload(
-    roomId: string,
-    contactId: string
-  ): Promise<any>;
-  override roomMemberRawPayload(
-    roomId: string,
-    contactId: string
-  ): Promise<any> {
-    log.verbose(
-      'PuppetBridge',
-      'roomMemberRawPayload(%s, %s)',
-      roomId,
-      contactId
-    );
+  override roomMemberRawPayload(roomId: string, contactId: string): Promise<any>;
+  override roomMemberRawPayload(roomId: string, contactId: string): Promise<any> {
+    log.verbose('PuppetBridge', 'roomMemberRawPayload(%s, %s)', roomId, contactId);
 
     const room = this.roomStore.get(roomId);
-    if (!room) throw new Error('room not found');
+    if (!room) return this.promiseWrap(() => null);
 
     const member = room.members.find(member => member.id === contactId);
-    if (!member) throw new Error('member not found');
+    if (!member) return this.promiseWrap(() => null);
 
     return this.promiseWrap(() => member);
   }
 
-  override roomMemberSearch(
-    roomId: string,
-    query: string | symbol | PUPPET.filters.RoomMember
-  ): Promise<string[]>;
-  override roomMemberSearch(
-    roomId: string,
-    query: string | symbol | PUPPET.filters.RoomMember
-  ): Promise<string[]> {
+  override roomMemberSearch(roomId: string, query: string | symbol | PUPPET.filters.RoomMember): Promise<string[]>;
+  override roomMemberSearch(roomId: string, query: string | symbol | PUPPET.filters.RoomMember): Promise<string[]> {
     log.verbose('PuppetBridge', 'roomMemberSearch(%s, %s)', roomId, query);
 
     const room = this.roomStore.get(roomId);
@@ -300,14 +258,10 @@ class PuppetBridge extends PUPPET.Puppet {
       members = memberIdList.filter(query);
     } else if (typeof query === 'object') {
       if (query.name) {
-        members = memberIdList.filter(() =>
-          memberList.find(member => member.name === query.name)
-        );
+        members = memberIdList.filter(() => memberList.find(member => member.name === query.name));
       }
     } else if (typeof query === 'string') {
-      members = memberIdList.filter(() =>
-        memberList.find(member => member.name === query)
-      );
+      members = memberIdList.filter(() => memberList.find(member => member.name === query));
     }
 
     return this.promiseWrap(() => members);
@@ -318,19 +272,11 @@ class PuppetBridge extends PUPPET.Puppet {
   override messageRawPayload(messageId: string): Promise<any>;
   override messageRawPayload(messageId: string): Promise<any> {
     log.verbose('PuppetBridge', 'messageRawPayload(%s)', messageId);
-
-    const message = this.messageStore.get(messageId);
-    if (!message) throw new Error('message not found');
-
-    return this.promiseWrap(() => message);
+    return this.promiseWrap(() => this.messageStore.get(messageId));
   }
 
-  override messageRawPayloadParser(
-    rawPayload: any
-  ): Promise<PUPPET.payloads.Message>;
-  override messageRawPayloadParser(
-    rawPayload: any
-  ): Promise<PUPPET.payloads.Message> {
+  override messageRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Message>;
+  override messageRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Message> {
     return this.promiseWrap(() => {
       return rawPayload;
     });
@@ -353,20 +299,11 @@ class PuppetBridge extends PUPPET.Puppet {
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    return await xmlDecrypt(
-      message.text || '',
-      message.type || PUPPET.types.Message.Unknown
-    );
+    return await xmlDecrypt(message.text || '', message.type || PUPPET.types.Message.Unknown);
   }
 
-  override async messageImage(
-    messageId: string,
-    imageType: PUPPET.types.Image
-  ): Promise<FileBoxInterface>;
-  override async messageImage(
-    messageId: string,
-    imageType: PUPPET.types.Image
-  ): Promise<FileBoxInterface> {
+  override async messageImage(messageId: string, imageType: PUPPET.types.Image): Promise<FileBoxInterface>;
+  override async messageImage(messageId: string, imageType: PUPPET.types.Image): Promise<FileBoxInterface> {
     log.verbose('PuppetBridge', 'messageImage(%s, %s)', messageId, imageType);
 
     const message = this.messageStore.get(messageId);
@@ -479,9 +416,7 @@ class PuppetBridge extends PUPPET.Puppet {
     }
 
     if (
-      [PUPPET.types.Message.Video, PUPPET.types.Message.Audio].includes(
-        message?.type || PUPPET.types.Message.Unknown
-      )
+      [PUPPET.types.Message.Video, PUPPET.types.Message.Audio].includes(message?.type || PUPPET.types.Message.Unknown)
     ) {
       throw new Error('not support message Video/`Audio');
     }
@@ -489,55 +424,54 @@ class PuppetBridge extends PUPPET.Puppet {
     return FileBox.fromFile(dataPath, fileName);
   }
 
-  override async messageUrl(
-    messageId: string
-  ): Promise<PUPPET.payloads.UrlLink>;
-  override async messageUrl(
-    messageId: string
-  ): Promise<PUPPET.payloads.UrlLink> {
+  override async messageUrl(messageId: string): Promise<PUPPET.payloads.UrlLink>;
+  override async messageUrl(messageId: string): Promise<PUPPET.payloads.UrlLink> {
     log.verbose('PuppetBridge', 'messageUrl(%s)', messageId);
 
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    return await xmlDecrypt(
-      message?.text || '',
-      message?.type || PUPPET.types.Message.Unknown
-    );
+    return await xmlDecrypt(message?.text || '', message?.type || PUPPET.types.Message.Unknown);
   }
 
-  override async messageMiniProgram(
-    messageId: string
-  ): Promise<PUPPET.payloads.MiniProgram>;
-  override async messageMiniProgram(
-    messageId: string
-  ): Promise<PUPPET.payloads.MiniProgram> {
+  override async messageMiniProgram(messageId: string): Promise<PUPPET.payloads.MiniProgram>;
+  override async messageMiniProgram(messageId: string): Promise<PUPPET.payloads.MiniProgram> {
     log.verbose('PuppetBridge', 'messageMiniProgram(%s)', messageId);
 
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    return await xmlDecrypt(
-      message?.text || '',
-      message?.type || PUPPET.types.Message.Unknown
-    );
+    return await xmlDecrypt(message?.text || '', message?.type || PUPPET.types.Message.Unknown);
   }
 
-  override async messageLocation(
-    messageId: string
-  ): Promise<PUPPET.payloads.Location>;
-  override async messageLocation(
-    messageId: string
-  ): Promise<PUPPET.payloads.Location> {
+  override async messageLocation(messageId: string): Promise<PUPPET.payloads.Location>;
+  override async messageLocation(messageId: string): Promise<PUPPET.payloads.Location> {
     log.verbose('PuppetBridge', 'messageLocation(%s)', messageId);
 
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    return await xmlDecrypt(
-      message?.text || '',
-      message?.type || PUPPET.types.Message.Unknown
-    );
+    return await xmlDecrypt(message?.text || '', message?.type || PUPPET.types.Message.Unknown);
+  }
+
+  override async messageSendText(
+    conversationId: string,
+    text: string,
+    mentionIdList?: string[] | undefined
+  ): Promise<string | void>;
+  override async messageSendText(
+    conversationId: string,
+    text: string,
+    mentionIdList?: string[] | undefined
+  ): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageSendText(%s, %s, %s)', conversationId, text, mentionIdList);
+
+    console.log('messageSendText', conversationId, text, mentionIdList);
+
+    if (text.includes('@') && mentionIdList?.length) {
+    } else {
+      await this.bridge.sendTextMsg(conversationId, text);
+    }
   }
 
   // core --------------
@@ -598,7 +532,7 @@ class PuppetBridge extends PUPPET.Puppet {
     } as EventScan);
   }
 
-  private async updateContactPayload(contact: Contact): Promise<void> {
+  private async updateContactPayload(contact: PuppetContact): Promise<void | PuppetContact> {
     log.verbose('PuppetBridge', 'updateContactPayload()');
 
     try {
@@ -612,6 +546,8 @@ class PuppetBridge extends PUPPET.Puppet {
       contact.signature = contactInfo.signature;
 
       this.contactStore.set(contact.id, contact);
+
+      return contact;
     } catch (error) {}
   }
 
@@ -638,7 +574,7 @@ class PuppetBridge extends PUPPET.Puppet {
           friend: true,
           phone: [] as string[],
           avatar: contact.smallHeadImgUrl
-        } as Contact;
+        } as PuppetContact;
 
         this.contactStore.set(contact.UserName, contactPayload);
 
@@ -646,17 +582,13 @@ class PuppetBridge extends PUPPET.Puppet {
         this.updateContactPayload(contactPayload);
       }
 
-      log.info(
-        'PuppetBridge',
-        'loadContacts() contacts count %s',
-        this.contactStore.size
-      );
+      log.info('PuppetBridge', 'loadContacts() contacts count %s', this.contactStore.size);
     } catch (error) {
       log.error('PuppetBridge', 'loadContacts() exception %s', error.stack);
     }
   }
 
-  private async updateRoomPayload(room: PuppetRoom): Promise<void> {
+  private async updateRoomPayload(room: PuppetRoom): Promise<void | PuppetRoom> {
     log.verbose('PuppetBridge', 'updateRoomPayload()');
 
     try {
@@ -682,12 +614,10 @@ class PuppetBridge extends PUPPET.Puppet {
       });
 
       this.roomStore.set(room.id, room);
+
+      return room;
     } catch (error) {
-      log.error(
-        'PuppetBridge',
-        'updateRoomPayload() exception %s',
-        error.stack
-      );
+      log.error('PuppetBridge', 'updateRoomPayload() exception %s', error.stack);
     }
   }
 
@@ -706,7 +636,8 @@ class PuppetBridge extends PUPPET.Puppet {
           adminIdList: [] as string[],
           memberIdList: [] as string[],
           members: [] as RoomMember[],
-          topic: room.NickName
+          topic: room.NickName,
+          loaded: false
         } as PuppetRoom;
 
         this.roomStore.set(room.UserName, roomPayload);
@@ -715,11 +646,7 @@ class PuppetBridge extends PUPPET.Puppet {
         this.updateRoomPayload(roomPayload);
       }
 
-      log.info(
-        'PuppetBridge',
-        'loadRooms() rooms count %s',
-        this.roomStore.size
-      );
+      log.info('PuppetBridge', 'loadRooms() rooms count %s', this.roomStore.size);
     } catch (error) {
       log.error('PuppetBridge', 'loadRooms() exception %s', error.stack);
     }
@@ -769,9 +696,7 @@ class PuppetBridge extends PUPPET.Puppet {
     return (msg as RecvScanMsg)?.desc?.includes('scan');
   }
   private isRecvMsg(msg: RecvMsg | RecvScanMsg): msg is RecvMsg {
-    return (
-      (msg as RecvMsg)?.type !== null && (msg as RecvMsg)?.type !== undefined
-    );
+    return (msg as RecvMsg)?.type !== null && (msg as RecvMsg)?.type !== undefined;
   }
 
   private async scanMsgHandler(message: RecvScanMsg): Promise<void> {
@@ -799,6 +724,14 @@ class PuppetBridge extends PUPPET.Puppet {
     this.emit('scan', payload);
   }
   private async msgHandler(message: RecvMsg): Promise<void> {
+    let roomId;
+
+    if (message.from.includes('@chatroom')) {
+      roomId = message.from;
+    } else if (message.to.includes('@chatroom')) {
+      roomId = message.to;
+    }
+
     const payload = {
       type: message.type ? Number(message.type) : PUPPET.types.Message.Unknown,
       id: message?.msgSvrID.toString(),
@@ -808,7 +741,7 @@ class PuppetBridge extends PUPPET.Puppet {
       timestamp: Date.now(),
       fromId: message.from,
       toId: message.to,
-      roomId: message.isChatroomMsg ? message.from : ''
+      roomId
     } as Message;
 
     this.messageStore.set(payload.id, payload);
@@ -819,7 +752,7 @@ class PuppetBridge extends PUPPET.Puppet {
   private async onMessage(message: RecvMsg | RecvScanMsg): Promise<void> {
     log.verbose('PuppetBridge', 'onMessage()');
 
-    if (!message) return;
+    if (!message || !this.isReady) return;
 
     log.info('PuppetBridge', 'onMessage() message %s', jsonStringify(message));
 
