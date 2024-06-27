@@ -77,7 +77,7 @@ class PuppetBridge extends PUPPET.Puppet {
     }, 1000);
   }
 
-  // contact --------------
+  // Contact --------------
 
   override contactRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Contact>;
   override contactRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Contact> {
@@ -138,7 +138,15 @@ class PuppetBridge extends PUPPET.Puppet {
     return this.promiseWrap(() => FileBox.fromUrl(contact.avatar));
   }
 
-  // room --------------
+  // Room --------------
+
+  private async getRoom(roomId: string) {
+    const room = this.roomStore.get(roomId);
+    if (!room) {
+      await this.updateRoomPayload({ id: roomId } as any);
+    }
+    return this.roomStore.get(roomId) || null;
+  }
 
   override roomRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Room> {
     log.verbose('PuppetBridge', 'roomRawPayloadParser(%s)', JSON.stringify(rawPayload));
@@ -148,47 +156,37 @@ class PuppetBridge extends PUPPET.Puppet {
   }
   override roomRawPayload(roomId: string): Promise<any> {
     log.verbose('PuppetBridge', 'roomRawPayload(%s)', roomId);
-    return this.promiseWrap(() => this.roomStore.get(roomId));
+    return this.getRoom(roomId);
   }
 
   override roomPayload(roomId: string): Promise<PUPPET.payloads.Room>;
   override roomPayload(roomId: string): Promise<PUPPET.payloads.Room | null>;
   override roomPayload(roomId: string): Promise<PUPPET.payloads.Room | null> {
     log.verbose('PuppetBridge', 'roomPayload(%s)', roomId);
-    return this.promiseWrap(() => this.roomStore.get(roomId) || null);
+    return this.getRoom(roomId);
   }
 
   override async roomTopic(roomId: string): Promise<string>;
   override async roomTopic(roomId: string, topic: string): Promise<void>;
   override async roomTopic(roomId: unknown, topic?: unknown): Promise<void | string> {
     log.verbose('PuppetBridge', 'roomTopic(%s, %s)', roomId, topic || '');
-
-    log.error('roomTopic not support', roomId, topic);
-
     if (typeof roomId !== 'string') return this.promiseWrap(() => '');
-
     const payload = await this.roomPayload(roomId);
-
-    if (!topic) {
-      return payload.topic;
-    } else {
-      return payload.topic;
-    }
+    return (payload && payload.topic) || '';
   }
 
   override roomSearch(query?: PUPPET.filters.Room | undefined): Promise<string[]> {
     log.verbose('PuppetBridge', 'roomSearch(%s)', query);
 
-    const roomIdList = Array.from(this.roomStore.keys());
     const roomList = Array.from(this.roomStore.values());
 
     let rooms: string[] = [];
 
     if (typeof query === 'object') {
       if (query.id) {
-        rooms = roomIdList.filter(id => id === query.id);
+        rooms = roomList.filter(room => room.id === query.id).map(room => room.id);
       } else if (query.topic) {
-        rooms = roomIdList.filter(id => roomList.find(room => room.topic === query.topic));
+        rooms = roomList.filter(room => room.topic === query.topic).map(room => room.id);
       }
     }
 
@@ -249,25 +247,24 @@ class PuppetBridge extends PUPPET.Puppet {
     const room = this.roomStore.get(roomId);
     if (!room) throw new Error('room not found');
 
-    const memberIdList = room.memberIdList;
     const memberList = room.members;
 
     let members: string[] = [];
 
     if (typeof query === 'function') {
-      members = memberIdList.filter(query);
+      members = memberList.filter(query).map(member => member.id);
     } else if (typeof query === 'object') {
       if (query.name) {
-        members = memberIdList.filter(() => memberList.find(member => member.name === query.name));
+        members = memberList.filter(member => member.name === query.name).map(member => member.id);
       }
     } else if (typeof query === 'string') {
-      members = memberIdList.filter(() => memberList.find(member => member.name === query));
+      members = memberList.filter(member => member.name === query).map(member => member.id);
     }
 
     return this.promiseWrap(() => members);
   }
 
-  // message --------------
+  // Message --------------
 
   override messageRawPayload(messageId: string): Promise<any>;
   override messageRawPayload(messageId: string): Promise<any> {
@@ -468,10 +465,10 @@ class PuppetBridge extends PUPPET.Puppet {
 
     console.log('messageSendText', conversationId, text, mentionIdList);
 
-    if (text.includes('@') && mentionIdList?.length) {
-    } else {
-      await this.bridge.sendTextMsg(conversationId, text);
-    }
+    // if (text.includes('@') && mentionIdList?.length) {
+    // } else {
+    //   await this.bridge.sendTextMsg(conversationId, text);
+    // }
   }
 
   // core --------------
@@ -532,7 +529,7 @@ class PuppetBridge extends PUPPET.Puppet {
     } as EventScan);
   }
 
-  private async updateContactPayload(contact: PuppetContact): Promise<void | PuppetContact> {
+  private async updateContactPayload(contact: PuppetContact): Promise<void> {
     log.verbose('PuppetBridge', 'updateContactPayload()');
 
     try {
@@ -546,8 +543,6 @@ class PuppetBridge extends PUPPET.Puppet {
       contact.signature = contactInfo.signature;
 
       this.contactStore.set(contact.id, contact);
-
-      return contact;
     } catch (error) {}
   }
 
@@ -588,15 +583,16 @@ class PuppetBridge extends PUPPET.Puppet {
     }
   }
 
-  private async updateRoomPayload(room: PuppetRoom): Promise<void | PuppetRoom> {
+  private async updateRoomPayload(room: PuppetRoom): Promise<void> {
     log.verbose('PuppetBridge', 'updateRoomPayload()');
 
     try {
       const roomInfo = await this.bridge.getChatRoomInfo(room.id);
-
       if (!roomInfo) return;
 
       const { profile } = roomInfo;
+
+      room.topic = profile.data.userName || '';
       room.avatar = profile.data.smallHeadImgUrl;
 
       const memebrsData = await this.bridge.getChatRoomMemberList(room.id);
@@ -614,8 +610,6 @@ class PuppetBridge extends PUPPET.Puppet {
       });
 
       this.roomStore.set(room.id, room);
-
-      return room;
     } catch (error) {
       log.error('PuppetBridge', 'updateRoomPayload() exception %s', error.stack);
     }
@@ -625,25 +619,30 @@ class PuppetBridge extends PUPPET.Puppet {
     log.verbose('PuppetBridge', 'loadRooms()');
 
     try {
-      const rooms = await this.bridge.getChatRoomList();
+      const roomsData = await this.bridge.getChatRoomDetailList();
 
-      for (const room of rooms) {
+      if (!roomsData || !roomsData.chatrooms) throw new Error('no rooms data');
+
+      for (const room of roomsData.chatrooms) {
+        const chatroomMembers = Object.values(room.chatroomMembers || {});
+
         const roomPayload = {
-          id: room.UserName,
-          avatar: '',
+          id: room.userName,
+          avatar: room.smallHeadImgUrl,
           external: false,
-          ownerId: '',
-          adminIdList: [] as string[],
-          memberIdList: [] as string[],
-          members: [] as RoomMember[],
-          topic: room.NickName,
-          loaded: false
+          ownerId: room.ownerUserName || '',
+          adminIdList: chatroomMembers.filter(member => member.isChatroomAdmin).map(member => member.userName) || [],
+          memberIdList: room.userNameList || [],
+          members: chatroomMembers.map(member => ({
+            id: member.userName,
+            roomAlias: member.alias,
+            avatar: member.smallHeadImgUrl,
+            name: member.nickName
+          })),
+          topic: room.userName || ''
         } as PuppetRoom;
 
-        this.roomStore.set(room.UserName, roomPayload);
-
-        // async update room payload
-        this.updateRoomPayload(roomPayload);
+        this.roomStore.set(room.userName, roomPayload);
       }
 
       log.info('PuppetBridge', 'loadRooms() rooms count %s', this.roomStore.size);

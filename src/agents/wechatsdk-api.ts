@@ -10,7 +10,8 @@ import {
   Result,
   User,
   LocationParams,
-  NormalResult
+  NormalResult,
+  ChatRoomDetail
 } from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
@@ -73,6 +74,17 @@ class WeChatSdkApi {
     return this.reqest.post<DataResult<ContactInfo>>('/api/', {
       type: 10015,
       userName
+    });
+  }
+
+  chatroomDetailList() {
+    return this.reqest.post<
+      DataResult<{
+        chatrooms: ChatRoomDetail[];
+        count: number;
+      }>
+    >('/api/', {
+      type: 10114
     });
   }
 

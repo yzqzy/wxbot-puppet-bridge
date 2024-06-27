@@ -154,6 +154,41 @@ export interface ChatRoom {
   UserName: string;
 }
 
+export interface ChatRoomDetail {
+  announcement: string;
+  announcementEditor: string;
+  announcementPublishTime: string;
+  chatroomAdminUserNames: string[];
+  chatroomMaxCount: number;
+  chatroomMemberCount: number;
+  chatroomMemberInfoVersion: number;
+  chatroomMembers: {
+    [key in string]: {
+      alias: string;
+      belongChatroomNickName: string;
+      belongChatroomSmallHeadImgUrl: string;
+      belongChatroomUserName: string;
+      chatroomDisplayName: string;
+      chatroomUserFlag: number;
+      isChatroomAdmin: boolean;
+      isChatroomOwner: boolean;
+      nickName: string;
+      remark: string;
+      smallHeadImgUrl: string;
+      type: string;
+      userName: string;
+      verifyFlag: string;
+    };
+  };
+  infoVersion: string;
+  nickName: string;
+  ownerUserName: string;
+  remark: string;
+  smallHeadImgUrl: string;
+  userName: string;
+  userNameList: string[];
+}
+
 export interface ChatRoomInfo {
   announcement: string;
   createTime: number;

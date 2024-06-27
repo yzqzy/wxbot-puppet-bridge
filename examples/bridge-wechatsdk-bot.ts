@@ -47,18 +47,33 @@ async function main() {
     const room = msg.room();
     log.info('Bot Msg Room: ', jsonStringify(room));
 
-    if (room) {
+    try {
+      if (!room) return;
+
       log.info('Bot Msg Room Topic: ', await room.topic());
-      log.info('Bot Msg Room Member: ', await room.memberAll());
+      log.info('Bot Msg Room Member Count: ', (await room.memberAll()).length);
       log.info('Bot Msg Room Owner: ', room.owner()?.name);
+    } catch (error) {
+      log.error('Bot Msg Room Error: ', error.message);
     }
 
-    if (msg.text() === 'ding') {
+    const text = msg.text();
+    log.info('Bot Msg Text: ', text);
+
+    if (text === 'ding') {
       await msg.say(`dong ${Date.now()}`);
       log.info('Bot say dong');
-    } else if (['ding_room', 'ding_room_@', 'ding_room_@all'].some(t => msg.text().includes(t))) {
+    } else if (['ding_room', 'ding_room_@', 'ding_room_@all'].some(t => text.includes(t))) {
       if (!room) return;
-      await room.say(`dong ${Date.now()}`);
+
+      if (text.includes('@all')) {
+        await room.say(`@all dong ${Date.now()}`);
+      } else if (text.includes('@')) {
+        await room.say(`@${contact.name()} dong ${Date.now()}`);
+      } else {
+        await room.say(`dong ${Date.now()}`);
+      }
+
       log.info('Bot say dong in room');
     }
 
