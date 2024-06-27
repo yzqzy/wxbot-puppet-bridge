@@ -45,8 +45,7 @@ async function main() {
     log.info('Bot Msg Contact: ', jsonStringify(contact));
 
     const room = msg.room();
-    log.info('Bot Msg Room: ', jsonStringify(room));
-
+    log.info('Bot Msg Room Id: ', room?.id);
     try {
       if (!room) return;
 
@@ -68,8 +67,9 @@ async function main() {
 
       if (text.includes('@all')) {
         await room.say(`@all dong ${Date.now()}`);
-      } else if (text.includes('@')) {
-        await room.say(`@${contact.name()} dong ${Date.now()}`);
+      } else if (text.includes('ding_room_@')) {
+        const members = await room.memberAll();
+        await room.say(`@[mention:${members[0].id}] @[mention:${members[1].id}] dong ${Date.now()}`);
       } else {
         await room.say(`dong ${Date.now()}`);
       }

@@ -274,6 +274,7 @@ class PuppetBridge extends PUPPET.Puppet {
 
   override messageRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Message>;
   override messageRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Message> {
+    log.verbose('PuppetBridge', 'messageRawPayloadParser(%s)', JSON.stringify(rawPayload));
     return this.promiseWrap(() => {
       return rawPayload;
     });
@@ -282,20 +283,16 @@ class PuppetBridge extends PUPPET.Puppet {
   override messagePayload(messageId: string): Promise<PUPPET.payloads.Message>;
   override messagePayload(messageId: string): Promise<PUPPET.payloads.Message> {
     log.verbose('PuppetBridge', 'messagePayload(%s)', messageId);
-
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
-
     return this.promiseWrap(() => message);
   }
 
   override async messageContact(messageId: string): Promise<string>;
   override async messageContact(messageId: string): Promise<string> {
     log.verbose('PuppetBridge', 'messageContact(%s)', messageId);
-
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
-
     return await xmlDecrypt(message.text || '', message.type || PUPPET.types.Message.Unknown);
   }
 
@@ -451,6 +448,48 @@ class PuppetBridge extends PUPPET.Puppet {
     return await xmlDecrypt(message?.text || '', message?.type || PUPPET.types.Message.Unknown);
   }
 
+  private mentionTextParser(message: string): { mentions: string[]; message: string } {
+    const mentionRegex = /@\[mention:([^\]]+)\]/g;
+    const mentions = message.match(mentionRegex) || [];
+
+    const mentionIds = mentions.map(mention => {
+      const match = mention.match(/@\[mention:([^\]]+)\]/);
+      return match && match.length > 1 ? match[1] : null;
+    });
+
+    const text = message.replace(mentionRegex, '').trim();
+
+    return {
+      mentions: mentionIds.filter(id => id) as string[],
+      message: text
+    };
+  }
+
+  private getMentionText(roomId: string, mentions: string[]) {
+    let mentionText = '';
+
+    if (mentions.length === 0) return mentionText;
+
+    const chatroom = this.roomStore.get(roomId);
+    if (!chatroom) throw new Error('chatroom not found');
+
+    const chatroomMembers = chatroom.members;
+
+    mentionText = mentions.reduce((acc, mentionId) => {
+      chatroomMembers.filter(member => {
+        if (member.id === mentionId) {
+          acc += `@${member.name} `;
+          return true;
+        }
+        return false;
+      });
+
+      return acc;
+    }, '');
+
+    return mentionText;
+  }
+
   override async messageSendText(
     conversationId: string,
     text: string,
@@ -463,12 +502,25 @@ class PuppetBridge extends PUPPET.Puppet {
   ): Promise<string | void> {
     log.verbose('PuppetBridge', 'messageSendText(%s, %s, %s)', conversationId, text, mentionIdList);
 
-    console.log('messageSendText', conversationId, text, mentionIdList);
+    if (!conversationId.includes('@chatroom')) {
+      log.info('messageSendText', 'normal text');
+      await this.bridge.sendTextMsg(conversationId, text);
+      return;
+    }
 
-    // if (text.includes('@') && mentionIdList?.length) {
-    // } else {
-    //   await this.bridge.sendTextMsg(conversationId, text);
-    // }
+    if (text.includes('@all')) {
+      log.info('messageSendText', 'at all');
+      text = text.replace('@all', '@所有人').trim();
+      await this.bridge.sendTextMsg(conversationId, text, ['notify@all']);
+    } else if (/@\[mention:([^\]]+)\]/g.test(text)) {
+      log.info('messageSendText', 'at mention');
+      const { mentions, message } = this.mentionTextParser(text);
+      const mentionText = this.getMentionText(conversationId, mentions);
+      await this.bridge.sendTextMsg(conversationId, `${mentionText} ${message}`, mentions);
+    } else {
+      log.info('messageSendText', 'normal text');
+      await this.bridge.sendTextMsg(conversationId, text);
+    }
   }
 
   // core --------------
