@@ -1,9 +1,9 @@
 import { WechatyBuilder, ScanStatus, Message, log, types } from 'wechaty';
 import qrTerm from 'qrcode-terminal';
+import { FileBox } from 'file-box';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
 import { createDir } from '@src/shared';
-import { FileBox } from 'file-box';
 
 async function main() {
   const puppet = new PuppetBridge({
@@ -24,30 +24,6 @@ async function main() {
   });
 
   bot.on('message', onMessage);
-
-  bot.on('room-join', (room, inviteeList, inviter) => {
-    log.info('Bot room join: ', jsonStringify(room));
-    log.info('Bot room join inviteeList: ', jsonStringify(inviteeList));
-    log.info('Bot room join inviter: ', jsonStringify(inviter));
-  });
-  bot.on('room-leave', (room, leaverList) => {
-    log.info('Bot room leave: ', jsonStringify(room));
-    log.info('Bot room leave leaverList: ', jsonStringify(leaverList));
-  });
-  bot.on('room-topic', (room, newTopic, oldTopic, changer) => {
-    log.info('Bot room topic: ', jsonStringify(room));
-    log.info('Bot room topic newTopic: ', newTopic);
-    log.info('Bot room topic oldTopic: ', oldTopic);
-    log.info('Bot room topic changer: ', jsonStringify(changer));
-  });
-  bot.on('room-invite', roomInvitation => {
-    log.info('Bot room invite: ', jsonStringify(roomInvitation));
-    try {
-      // TODO: handle room invitation
-    } catch (error) {
-      log.error('Bot room invite error: ', error.message);
-    }
-  });
 
   bot.on('logout', user => {
     log.info('Bot user logout: ', jsonStringify(user));
@@ -101,7 +77,6 @@ async function onMessage(msg: Message) {
   downloadFileHandler(msg);
 }
 
-const basePath = 'examples/media';
 async function sendMsgHandler(msg: Message) {
   const text = msg.text();
   log.info('Bot Msg Text: ', text);
@@ -115,20 +90,11 @@ async function sendMsgHandler(msg: Message) {
     await msg.say(fileBox);
     log.info('Bot say jpg');
   } else if (text === 'jpg_local') {
-    const newpath = basePath + 'logo.jpg';
-    const fileBox = FileBox.fromFile(newpath);
-    await msg.say(fileBox);
-    log.info('Bot say jpg_local');
+    // TODO: local file
   } else if (text === 'gif') {
-    const newpath = basePath + 'test.gif';
-    const fileBox = FileBox.fromFile(newpath);
-    await msg.say(fileBox);
-    log.info('Bot say gif');
+    // TODO: local file
   } else if (text === 'mp4') {
-    const newpath = basePath + 'test.mp4';
-    const fileBox = FileBox.fromFile(newpath);
-    await msg.say(fileBox);
-    log.info('Bot say mp4');
+    // TODO: local file
   } else if (['ding_room', 'ding_room_@', 'ding_room_@all'].some(t => text.includes(t))) {
     const room = msg.room();
 

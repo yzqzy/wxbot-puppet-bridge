@@ -264,6 +264,58 @@ class PuppetBridge extends PUPPET.Puppet {
     return this.promiseWrap(() => members);
   }
 
+  // Room ops --------------
+
+  override async roomAdd(roomId: string, contactId: string): Promise<void>;
+  override async roomAdd(roomId: string, contactId: string, inviterId?: string): Promise<void> {
+    log.verbose('PuppetBridge', 'roomAdd(%s, %s, %s)', roomId, contactId, inviterId || '');
+
+    // TODO: add contact to room
+
+    return this.promiseWrap(() => {});
+  }
+
+  override async roomDel(roomId: string, contactId: string): Promise<void>;
+  override async roomDel(roomId: string, contactId: string, reason?: string): Promise<void> {
+    log.verbose('PuppetBridge', 'roomDel(%s, %s, %s)', roomId, contactId, reason || '');
+
+    // TODO: remove contact from room
+
+    return this.promiseWrap(() => {});
+  }
+
+  override async roomQuit(roomId: string): Promise<void>;
+  override async roomQuit(roomId: string, reason?: string): Promise<void> {
+    log.verbose('PuppetBridge', 'roomQuit(%s, %s)', roomId, reason || '');
+
+    // TODO: remove self from room
+
+    return this.promiseWrap(() => {});
+  }
+
+  // Room Invitation --------------
+
+  override roomInvitationRawPayload(roomInvitationId: string): Promise<any>;
+  override roomInvitationRawPayload(roomInvitationId: string): Promise<any> {
+    log.verbose('PuppetBridge', 'roomInvitationRawPayload(%s)', roomInvitationId);
+    return this.promiseWrap(() => null);
+  }
+
+  override roomInvitationRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.RoomInvitation>;
+  override roomInvitationRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.RoomInvitation> {
+    log.verbose('PuppetBridge', 'roomInvitationRawPayloadParser(%s)', JSON.stringify(rawPayload));
+    return this.promiseWrap(() => rawPayload);
+  }
+
+  override roomInvitationAccept(roomInvitationId: string): Promise<void>;
+  override roomInvitationAccept(roomInvitationId: string): Promise<void> {
+    log.verbose('PuppetBridge', 'roomInvitationAccept(%s)', roomInvitationId);
+
+    // TODO: accept room invitation
+
+    return this.promiseWrap(() => {});
+  }
+
   // Message --------------
 
   override messageRawPayload(messageId: string): Promise<any>;
@@ -490,6 +542,8 @@ class PuppetBridge extends PUPPET.Puppet {
     return mentionText;
   }
 
+  // Message Send --------------
+
   override async messageSendText(
     conversationId: string,
     text: string,
@@ -523,7 +577,7 @@ class PuppetBridge extends PUPPET.Puppet {
     }
   }
 
-  // core --------------
+  // Core --------------
 
   async onStart(): Promise<void> {
     log.verbose('PuppetBridge', 'onStart()');

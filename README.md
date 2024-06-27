@@ -12,60 +12,60 @@
 npm install wxbot-puppet-bridge
 ```
 
-## 二、基础用法
+## 二、功能列表
+
+| 列表                                       | 已支持 | 适配中 |
+| ------------------------------------------ | ------ | ------ |
+| 收发消息、消息体解析                       | ✅      | ✅      |
+| 发消息（文本、@文本、@all）                | ✅      | ✅      |
+| 发消息（图片、文件、视频）                 | ❌      | ✅      |
+| 群操作（邀请入群、同意入群、入群消息提醒） | ❌      | ✅      |
+| 标签管理（创建标签、删除标签、列表查询）   | ❌      | ✅      |
+
+## 三、如何使用
 
 ```typescript
-import { ScanStatus } from 'wechaty-puppet/types';
-import { log } from 'wechaty-puppet';
+iimport { WechatyBuilder, ScanStatus, Message, log, types } from 'wechaty';
 import qrTerm from 'qrcode-terminal';
-import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from 'wxbot-puppet-bridge';
-import { jsonStringify } from 'wxbot-puppet-bridge/dist/shared';
+import { FileBox } from 'file-box';
+import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
+import { jsonStringify } from '@src/shared/tools';
+import { createDir } from '@src/shared';
 
 async function main() {
   const puppet = new PuppetBridge({
-    // wx robot api url
     apiUrl: 'http://127.0.0.1:8888',
-    // recv msg protocol, http or ws, default http
-    protocol: 'ws' 
+    protocol: 'ws'
   });
 
-  puppet.on('scan', async options => {
-    const { status, qrcode } = options;
+  const bot = WechatyBuilder.build({ name: 'wechatsdk-bot', puppet });
 
-    if (status === ScanStatus.Waiting || status === ScanStatus.Timeout) {
-      log.info('Please scan the QR code to login:', qrcode);
-      qrTerm.generate(qrcode as string, { small: true }); // show qrcode on console
-      log.info('StarterBot', 'onScan: %s(%s)', ScanStatus[status], status);
-      return;
-    }
+  bot.on('scan', onScan);
 
-    log.info('StarterBot', 'onScan: %s(%s)', ScanStatus[status], status);
+  bot.on('login', user => {
+    log.info('Bot use login: ', jsonStringify(user));
   });
 
-  puppet.on('login', user => {
-    log.info('User login: ', jsonStringify(user));
+  bot.on('ready', () => {
+    log.info('Bot is ready');
   });
 
-  puppet.on('ready', () => {
-    log.info('Puppet is ready');
+  bot.on('message', onMessage);
+
+  bot.on('logout', user => {
+    log.info('Bot user logout: ', jsonStringify(user));
   });
 
-  puppet.on('message', message => {
-    log.info('Message: ', jsonStringify(message));
+  bot.on('error', error => {
+    log.error('Bot error:', error.message);
   });
 
-  puppet.on('logout', user => {
-    log.info('User logout: ', jsonStringify(user));
-  });
-
-  puppet.on('error', error => {
-    log.error('Puppet error:', error.data);
-  });
-
-  await puppet.start();
+  await bot.start();
 }
 
-main().catch(console.error);
+main()
+  .then(() => log.info('StarterBot', 'Ready'))
+  .catch(console.error);
 ```
 
 ### 三、参考
