@@ -28,9 +28,8 @@ npm install wxbot-puppet-bridge
 iimport { WechatyBuilder, ScanStatus, Message, log, types } from 'wechaty';
 import qrTerm from 'qrcode-terminal';
 import { FileBox } from 'file-box';
-import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
-import { jsonStringify } from '@src/shared/tools';
-import { createDir } from '@src/shared';
+import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from 'wxbot-puppet-bridge';
+import { jsonStringify, createDir } from 'wxbot-puppet-bridge/dist/shared';
 
 async function main() {
   const puppet = new PuppetBridge({
