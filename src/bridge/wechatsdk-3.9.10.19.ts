@@ -1,6 +1,7 @@
 import * as PUPPET from 'wechaty-puppet';
 import { FileBoxInterface, FileBox, FileBoxType } from 'file-box';
 import xml2js from 'xml2js';
+import readXml from 'xmlreader';
 import fs from 'fs';
 import path from 'path';
 import fsPromise from 'fs/promises';
@@ -582,14 +583,10 @@ class PuppetBridge extends PUPPET.Puppet {
   override async messageSendFile(conversationId: string, file: FileBoxInterface): Promise<string | void> {
     log.verbose('PuppetBridge', 'messageSendFile(%s, %s)', conversationId, file);
 
-    let filePath = path.resolve() + '\\downloads\\file\\';
-    log.info('messageSendFile', 'file path %s', filePath);
-
+    let filePath = path.resolve() + '\\downloads\\';
     createDirIfNotExist(filePath);
 
     filePath = filePath + '\\' + file.name;
-    log.info('messageSendFile', 'file path %s, type %s', filePath, file.type);
-
     if (!fs.existsSync(filePath)) {
       try {
         await file.toFile(filePath);
@@ -620,8 +617,77 @@ class PuppetBridge extends PUPPET.Puppet {
   override messageSendUrl(conversationId: string, urlLinkPayload: PUPPET.payloads.UrlLink): Promise<string | void> {
     log.verbose('PuppetBridge', 'messageSendUrl(%s, %s)', conversationId, urlLinkPayload);
 
+    // TODO: send url
+
     return this.promiseWrap(() => {
       // throw new Error('not support messageSendUrl');
+    });
+  }
+
+  override async messageSendContact(conversationId: string, contactId: string): Promise<string | void>;
+  override async messageSendContact(conversationId: string, contactId: string): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageSendContact(%s, %s)', conversationId, contactId);
+
+    try {
+      await this.bridge.sendContactMsg(conversationId, contactId);
+    } catch (error) {
+      log.error('messageSendContact fail:', error);
+    }
+  }
+
+  override messageSendMiniProgram(
+    conversationId: string,
+    miniProgramPayload: PUPPET.payloads.MiniProgram
+  ): Promise<string | void>;
+  override messageSendMiniProgram(
+    conversationId: string,
+    miniProgramPayload: PUPPET.payloads.MiniProgram
+  ): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageSendMiniProgram(%s, %s)', conversationId, miniProgramPayload);
+
+    // TODO: send mini program
+
+    return this.promiseWrap(() => {
+      // throw new Error('not support messageSendMiniProgram');
+    });
+  }
+
+  override messageForward(conversationId: string, messageId: string): Promise<string | void>;
+  override messageForward(conversationId: string, messageId: string): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageForward(%s, %s)', conversationId, messageId);
+
+    // TODO: forward message
+
+    return this.promiseWrap(() => {
+      // throw new Error('not support messageForward');
+    });
+  }
+
+  override messageSendLocation(
+    conversationId: string,
+    locationPayload: PUPPET.payloads.Location
+  ): Promise<string | void>;
+  override messageSendLocation(
+    conversationId: string,
+    locationPayload: PUPPET.payloads.Location
+  ): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageSendLocation(%s, %s)', conversationId, locationPayload);
+
+    // TODO: send location
+
+    return this.promiseWrap(() => {
+      // throw new Error('not support messageSendLocation');
+    });
+  }
+
+  override messageSendPost(conversationId: string, postPayload: PUPPET.payloads.Post): Promise<string | void>;
+  override messageSendPost(conversationId: string, postPayload: PUPPET.payloads.Post): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageSendPost(%s, %s)', conversationId, postPayload);
+
+    // TODO: send post
+
+    return this.promiseWrap(() => {
+      // throw new Error('not support messageSendPost');
     });
   }
 
@@ -683,11 +749,17 @@ class PuppetBridge extends PUPPET.Puppet {
     } as EventScan);
   }
 
-  private async updateContactPayload(contact: PuppetContact): Promise<void> {
+  private async updateContactPayload(contact: PuppetContact, forceUpdate = false): Promise<void> {
     log.verbose('PuppetBridge', 'updateContactPayload()');
+
+    if (!contact) return;
+
+    const exist = this.contactStore.get(contact.id);
+    if (exist && !forceUpdate) return;
 
     try {
       const contactInfo = await this.bridge.getContactInfo(contact.id);
+      if (!contactInfo) return;
 
       contact.gender = contactInfo.sex;
       contact.city = contactInfo.city;
@@ -728,7 +800,7 @@ class PuppetBridge extends PUPPET.Puppet {
         this.contactStore.set(contact.UserName, contactPayload);
 
         // async update contact payload
-        this.updateContactPayload(contactPayload);
+        this.updateContactPayload(contactPayload, true);
       }
 
       log.info('PuppetBridge', 'loadContacts() contacts count %s', this.contactStore.size);
@@ -737,8 +809,13 @@ class PuppetBridge extends PUPPET.Puppet {
     }
   }
 
-  private async updateRoomPayload(room: PuppetRoom): Promise<void> {
+  private async updateRoomPayload(room: PuppetRoom, forceUpdate = false): Promise<void> {
     log.verbose('PuppetBridge', 'updateRoomPayload()');
+
+    if (!room) return;
+
+    const exist = this.roomStore.get(room.id);
+    if (exist && !forceUpdate) return;
 
     try {
       const roomInfo = await this.bridge.getChatRoomInfo(room.id);
@@ -876,26 +953,186 @@ class PuppetBridge extends PUPPET.Puppet {
 
     this.emit('scan', payload);
   }
+
+  private async normalizedMsg(message: RecvMsg) {
+    let type = PUPPET.types.Message.Unknown;
+    let content = message.content;
+
+    const code = message.type.valueOf();
+    let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
+
+    switch (code) {
+      case 1:
+        type = PUPPET.types.Message.Text;
+        break;
+      case 3:
+        type = PUPPET.types.Message.Image;
+        content = JSON.stringify(['content.thumb', 'content.thumb', 'content.detail', 'content.thumb']);
+        break;
+      case 4:
+        type = PUPPET.types.Message.Video;
+        break;
+      case 5:
+        type = PUPPET.types.Message.Url;
+        break;
+      case 34:
+        type = PUPPET.types.Message.Audio;
+        break;
+      case 37:
+        type = PUPPET.types.Message.Contact;
+        break;
+      case 40:
+        break;
+      case 42:
+        type = PUPPET.types.Message.Contact;
+        break;
+      case 43:
+        type = PUPPET.types.Message.Video;
+        break;
+      case 47:
+        type = PUPPET.types.Message.Emoticon;
+        try {
+          await new Promise((resolve, reject) => {
+            readXml.read(content, function (errors: any, xmlResponse: any) {
+              if (errors !== null) {
+                log.error(errors);
+                resolve(null);
+                return;
+              }
+              const xml2json = xmlResponse.msg.emoji.attributes();
+              content = JSON.stringify(xml2json);
+              resolve(null);
+            });
+          });
+        } catch (err) {
+          log.error('xml2js.parseString fail:', err);
+        }
+        break;
+      case 48:
+        type = PUPPET.types.Message.Location;
+        break;
+      case 49:
+        try {
+          await new Promise(resolve => {
+            xml2js.parseString(
+              content,
+              { explicitArray: false, ignoreAttrs: true },
+              function (err: any, json: { msg: { appmsg: { type: string; title: string } } }) {
+                log.error('PuppetBridge', 'xml2json err:%s', err);
+                log.info('PuppetBridge', 'json content:%s', JSON.stringify(json));
+
+                subType = json.msg.appmsg.type || subType;
+
+                switch (subType) {
+                  case '5': // card link
+                    type = PUPPET.types.Message.Url;
+                    break;
+                  case '4':
+                    type = PUPPET.types.Message.Url;
+                    break;
+                  case '1':
+                    type = PUPPET.types.Message.Url;
+                    break;
+                  case '6': // file
+                    type = PUPPET.types.Message.Attachment;
+                    break;
+                  case '19':
+                    type = PUPPET.types.Message.ChatHistory;
+                    break;
+                  case '33':
+                    type = PUPPET.types.Message.MiniProgram;
+                    break;
+                  case '87':
+                    type = PUPPET.types.Message.GroupNote;
+                    break;
+                  case '2000':
+                    type = PUPPET.types.Message.Transfer;
+                    break;
+                  case '2001':
+                    type = PUPPET.types.Message.RedEnvelope;
+                    break;
+                  case '10002':
+                    type = PUPPET.types.Message.Recalled;
+                    break;
+                  default:
+                }
+
+                resolve(null);
+              }
+            );
+          });
+        } catch (err) {
+          log.error('xml2js.parseString fail:', err);
+        }
+        break;
+      case 50:
+        break;
+      case 51:
+        break;
+      case 52:
+        break;
+      case 53:
+        type = PUPPET.types.Message.GroupNote;
+        break;
+      case 62:
+        break;
+      case 9999:
+        break;
+      case 10000:
+        // room event
+        break;
+      case 10002:
+        type = PUPPET.types.Message.Recalled;
+        break;
+      case 1000000000:
+        type = PUPPET.types.Message.Post;
+        break;
+      default:
+    }
+
+    return {
+      content,
+      type,
+      subType
+    };
+  }
   private async msgHandler(message: RecvMsg): Promise<void> {
+    const talkerId = message.talkerInfo?.userName;
+
     let roomId;
 
     if (message.from.includes('@chatroom')) {
       roomId = message.from;
+      message.content = message.content.replace(`${talkerId}\n`, '');
     } else if (message.to.includes('@chatroom')) {
       roomId = message.to;
     }
 
+    if (talkerId) {
+      await this.updateContactPayload({
+        id: talkerId
+      } as PuppetContact);
+    }
+
+    const { content, type } = await this.normalizedMsg(message);
+
     const payload = {
-      type: message.type ? Number(message.type) : PUPPET.types.Message.Unknown,
+      type,
       id: message?.msgSvrID.toString(),
-      talkerId: message?.talkerInfo?.userName,
-      text: message.content,
+      talkerId,
+      text: content,
       listenerId: message.to,
       timestamp: Date.now(),
       fromId: message.from,
       toId: message.to,
       roomId
     } as Message;
+
+    if (roomId && !this.roomStore.get(roomId)) {
+      await this.updateRoomPayload({
+        id: roomId
+      } as PuppetRoom);
+    }
 
     this.messageStore.set(payload.id, payload);
 

@@ -35,6 +35,9 @@ importers:
       xml2js:
         specifier: ^0.6.2
         version: 0.6.2
+      xmlreader:
+        specifier: ^0.2.3
+        version: 0.2.3
     devDependencies:
       '@types/express':
         specifier: ^4.17.21
@@ -1748,6 +1751,9 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
+  sax@0.5.8:
+    resolution: {integrity: sha512-c0YL9VcSfcdH3F1Qij9qpYJFpKFKMXNOkLWFssBL3RuF7ZS8oZhllR2rWlCRjDTJsfq3R6wbSsaRU6o0rkEdNw==}
+
   sax@1.4.1:
     resolution: {integrity: sha512-+aWOz7yVScEGoKNd4PA10LZ8sk0A/z5+nXQG5giUO5rprX9jgYsTdov9qCchZiPIZezbZH+jRut8nPodFAX4Jg==}
 
@@ -2085,6 +2091,9 @@ packages:
   xmlbuilder@11.0.1:
     resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
     engines: {node: '>=4.0'}
+
+  xmlreader@0.2.3:
+    resolution: {integrity: sha512-/4LcqECvPns1GMI6kubZZtCJ3yQUWhIOmOFbCOT795bKzLxyCsIqLQS0YXpJVlRaz5jhrZnCGVDOiPRHOxqDCA==}
 
   xstate@4.38.3:
     resolution: {integrity: sha512-SH7nAaaPQx57dx6qvfcIgqKRXIh4L0A1iYEqim4s1u7c9VoCgzZc+63FY90AKU4ZzOC2cfJzTnpO4zK7fCUzzw==}
@@ -3931,6 +3940,8 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
+  sax@0.5.8: {}
+
   sax@1.4.1: {}
 
   semver@7.6.2: {}
@@ -4362,6 +4373,10 @@ snapshots:
       xmlbuilder: 11.0.1
 
   xmlbuilder@11.0.1: {}
+
+  xmlreader@0.2.3:
+    dependencies:
+      sax: 0.5.8
 
   xstate@4.38.3: {}
 

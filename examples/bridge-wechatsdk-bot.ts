@@ -63,7 +63,6 @@ async function onMessage(msg: Message) {
   log.info('Bot Msg Contact: ', jsonStringify(contact));
 
   sendMsgHandler(msg);
-  downloadFileHandler(msg);
 
   const room = msg.room();
   log.info('Bot Msg Room Id: ', room?.id);
@@ -128,37 +127,5 @@ async function sendMsgHandler(msg: Message) {
     }
 
     log.info('Bot say dong in room');
-  }
-}
-
-async function downloadFileHandler(msg: Message) {
-  let filePath = 'downloads';
-  createDirIfNotExist(filePath);
-
-  try {
-    const type = msg.type();
-
-    log.info('Bot Msg Type: ', type);
-
-    if ([types.Message.Image, types.Message.Video, types.Message.Audio, types.Message.Emoticon].some(t => t === type)) {
-      let file;
-
-      if (type === types.Message.Image) {
-        file = await msg.toImage().thumbnail();
-      } else {
-        file = await msg.toFileBox();
-      }
-
-      filePath = `${filePath}/${file.name}`;
-
-      try {
-        await file.toFile(filePath, true);
-        log.info('Bot download file success:', filePath);
-      } catch (error) {
-        log.error('Bot download file error:', error.message);
-      }
-    }
-  } catch (error) {
-    log.error('Bot get file error:', error.message);
   }
 }
