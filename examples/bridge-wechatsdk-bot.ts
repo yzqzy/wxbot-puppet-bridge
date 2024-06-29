@@ -1,9 +1,10 @@
 import { WechatyBuilder, ScanStatus, Message, log, types } from 'wechaty';
 import qrTerm from 'qrcode-terminal';
 import { FileBox } from 'file-box';
+import path from 'path';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
-import { createDir } from '@src/shared';
+import { createDirIfNotExist } from '@src/shared';
 
 async function main() {
   const puppet = new PuppetBridge({
@@ -61,22 +62,24 @@ async function onMessage(msg: Message) {
   const contact = msg.talker();
   log.info('Bot Msg Contact: ', jsonStringify(contact));
 
+  sendMsgHandler(msg);
+  downloadFileHandler(msg);
+
   const room = msg.room();
   log.info('Bot Msg Room Id: ', room?.id);
-  try {
-    if (!room) return;
 
+  if (!room) return;
+
+  try {
     log.info('Bot Msg Room Topic: ', await room.topic());
     log.info('Bot Msg Room Member Count: ', (await room.memberAll()).length);
     log.info('Bot Msg Room Owner: ', room.owner()?.name);
   } catch (error) {
     log.error('Bot Msg Room Error: ', error.message);
   }
-
-  sendMsgHandler(msg);
-  downloadFileHandler(msg);
 }
 
+const basePath = path.join(process.cwd(), 'examples/media/');
 async function sendMsgHandler(msg: Message) {
   const text = msg.text();
   log.info('Bot Msg Text: ', text);
@@ -89,17 +92,32 @@ async function sendMsgHandler(msg: Message) {
     const fileBox = FileBox.fromUrl(newpath);
     await msg.say(fileBox);
     log.info('Bot say jpg');
+  } else if (text === 'text') {
+    const newpath = basePath + 'test.txt';
+    const fileBox = FileBox.fromFile(newpath);
+    await msg.say(fileBox);
+    log.info('Bot say text');
   } else if (text === 'jpg_local') {
-    // TODO: local file
+    const newpath = basePath + 'test.jpg';
+    const fileBox = FileBox.fromFile(newpath);
+    await msg.say(fileBox);
+    log.info('Bot say jpg_local');
   } else if (text === 'gif') {
-    // TODO: local file
+    const newpath = basePath + 'test.gif';
+    const fileBox = FileBox.fromFile(newpath);
+    await msg.say(fileBox);
+    log.info('Bot say gif');
   } else if (text === 'mp4') {
-    // TODO: local file
-  } else if (['ding_room', 'ding_room_@', 'ding_room_@all'].some(t => text.includes(t))) {
-    const room = msg.room();
+    const newpath = basePath + 'test.mp4';
+    const fileBox = FileBox.fromFile(newpath);
+    await msg.say(fileBox);
+    log.info('Bot say mp4');
+  }
 
-    if (!room) return;
+  const room = msg.room();
+  if (!room) return;
 
+  if (['ding_room', 'ding_room_@', 'ding_room_@all'].some(t => text.includes(t))) {
     if (text.includes('@all')) {
       await room.say(`@all dong ${Date.now()}`);
     } else if (text.includes('ding_room_@')) {
@@ -115,7 +133,7 @@ async function sendMsgHandler(msg: Message) {
 
 async function downloadFileHandler(msg: Message) {
   let filePath = 'downloads';
-  createDir(filePath);
+  createDirIfNotExist(filePath);
 
   try {
     const type = msg.type();

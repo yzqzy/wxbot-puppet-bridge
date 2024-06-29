@@ -1,7 +1,8 @@
 import * as PUPPET from 'wechaty-puppet';
-import { FileBoxInterface, FileBox } from 'file-box';
+import { FileBoxInterface, FileBox, FileBoxType } from 'file-box';
 import xml2js from 'xml2js';
 import fs from 'fs';
+import path from 'path';
 import fsPromise from 'fs/promises';
 import { log } from 'wechaty-puppet';
 
@@ -11,7 +12,7 @@ import Bridge from '@src/agents/wechatsdk-agent';
 import { delaySync, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
-import { getRootPath, imageDecrypt, xmlDecrypt } from '@src/shared';
+import { createDirIfNotExist, getRootPath, imageDecrypt, removeFile, xmlDecrypt } from '@src/shared';
 
 const VERSION = '3.9.10.19';
 
@@ -575,6 +576,53 @@ class PuppetBridge extends PUPPET.Puppet {
       log.info('messageSendText', 'normal text');
       await this.bridge.sendTextMsg(conversationId, text);
     }
+  }
+
+  override async messageSendFile(conversationId: string, file: FileBoxInterface): Promise<string | void>;
+  override async messageSendFile(conversationId: string, file: FileBoxInterface): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageSendFile(%s, %s)', conversationId, file);
+
+    let filePath = path.resolve() + '\\downloads\\file\\';
+    log.info('messageSendFile', 'file path %s', filePath);
+
+    createDirIfNotExist(filePath);
+
+    filePath = filePath + '\\' + file.name;
+    log.info('messageSendFile', 'file path %s, type %s', filePath, file.type);
+
+    if (!fs.existsSync(filePath)) {
+      try {
+        await file.toFile(filePath);
+      } catch (err) {
+        log.error('file.toFile(filePath) fail:', err);
+      }
+    }
+
+    if (file.type === FileBoxType.Url) {
+      try {
+        await this.bridge.sendImageMsg(conversationId, filePath);
+      } catch (err) {
+        log.error('messageSendImage fail:', err);
+      }
+    } else {
+      try {
+        await this.bridge.sendFileMsg(conversationId, filePath);
+      } catch (err) {
+        log.error('messageSendFile fail:', err);
+        PUPPET.throwUnsupportedError(conversationId, file);
+      }
+    }
+
+    removeFile(filePath);
+  }
+
+  override messageSendUrl(conversationId: string, urlLinkPayload: PUPPET.payloads.UrlLink): Promise<string | void>;
+  override messageSendUrl(conversationId: string, urlLinkPayload: PUPPET.payloads.UrlLink): Promise<string | void> {
+    log.verbose('PuppetBridge', 'messageSendUrl(%s, %s)', conversationId, urlLinkPayload);
+
+    return this.promiseWrap(() => {
+      // throw new Error('not support messageSendUrl');
+    });
   }
 
   // Core --------------
