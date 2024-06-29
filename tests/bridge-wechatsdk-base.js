@@ -3,9 +3,7 @@ const qrTerm = require('qrcode-terminal');
 
 const { log } = require('wechaty-puppet');
 
-const {
-  WeChatSdkPuppetBridge_3_9_10_19: PuppetBridge
-} = require('wxbot-puppet-bridge');
+const { WeChatSdkPuppetBridge_3_9_10_19: PuppetBridge } = require('wxbot-puppet-bridge');
 const { jsonStringify } = require('wxbot-puppet-bridge/dist/shared');
 
 async function main() {
