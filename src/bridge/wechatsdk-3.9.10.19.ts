@@ -870,7 +870,7 @@ class PuppetBridge extends PUPPET.Puppet {
             avatar: member.smallHeadImgUrl,
             name: member.nickName
           })),
-          topic: room.userName || ''
+          topic: room.nickName || ''
         } as PuppetRoom;
 
         this.roomStore.set(room.userName, roomPayload);
@@ -953,6 +953,170 @@ class PuppetBridge extends PUPPET.Puppet {
 
     this.emit('scan', payload);
   }
+
+  private isRoomOps = (message: RecvMsg) => {
+    return [10000, 10002].some(code => code === message.type.valueOf());
+  };
+
+  private getOpsRelationship = (text: string) => {
+    // TODO
+  };
+
+  private roomMsgHandler = async (message: Message) => {
+    log.verbose('PuppetBridge', 'roomMsg()');
+
+    log.info('PuppetBridge', 'roomMsg() message %s', jsonStringify(message));
+
+    const { roomId, text } = message;
+    if (!roomId) return;
+
+    const room = this.roomStore.get(roomId);
+    const memebrs = room?.members || [];
+    if (!room) return;
+
+    // "heora"修改群名为“wxbot1234”
+    // 你修改群名为“wxbot1234”
+    if (text?.includes('修改群名为')) {
+      let topic = '';
+      const oldTopic = room ? room.topic : '';
+      const arrInfo = text.split('修改群名为');
+
+      let changer: PUPPET.payloads.Contact | undefined;
+
+      log.info('PuppetBridge', 'roomMsg() arrInfo %s', arrInfo);
+
+      if (arrInfo[0]) {
+        topic = arrInfo[1]?.split(/“|”|"/)[1] || '';
+
+        log.info('PuppetBridge', 'roomMsg() topic %s', topic);
+
+        room.topic = topic;
+        this.roomStore.set(roomId, room);
+
+        if (arrInfo[0] == '你') {
+          changer = this.userInfo;
+        } else {
+          const name = arrInfo[0].split(/“|”|"/)[1] || '';
+          const member = memebrs.find(member => member.name === name);
+          if (member) {
+            changer = {
+              id: member.id,
+              name: member.name,
+              avatar: member.avatar
+            } as PUPPET.payloads.Contact;
+          }
+        }
+
+        this.emit('room-topic', { changerId: changer?.id, newTopic: topic, oldTopic, roomId });
+      }
+    }
+
+    // 将\"heora\"添加为群管理员
+    // TODO: 群管理员变更
+
+    // 你邀请\"彬 - Detail\"加入了群聊
+    // "heora"邀请\"彬 - Detail"\加入了群聊
+    if (text?.includes('加入了群聊')) {
+      const inviteeIdList = [];
+
+      let inviter: PUPPET.payloads.Contact | undefined;
+
+      const arrInfo = text.split(/邀请|加入了群聊/);
+
+      if (arrInfo.length > 2 && arrInfo[0] && arrInfo[1]) {
+        if (arrInfo[0] == '你') {
+          inviter = this.userInfo;
+          const name = arrInfo[1].split(/“|”|"/)[1] || '';
+          const invitee = memebrs.find(member => member.name === name);
+          if (invitee) {
+            inviteeIdList.push(invitee.id);
+          }
+        } else if (arrInfo[1] === '你') {
+          inviteeIdList.push(this.userInfo.id);
+          const name = arrInfo[0].split(/“|”|"/)[1] || '';
+          const member = memebrs.find(member => member.name === name);
+          if (member) {
+            inviter = {
+              id: member.id,
+              name: member.name,
+              avatar: member.avatar
+            } as PUPPET.payloads.Contact;
+          }
+        } else {
+          const name = arrInfo[0].split(/“|”|"/)[1] || '';
+          const member = memebrs.find(member => member.name === name);
+          if (member) {
+            inviter = {
+              id: member.id,
+              name: member.name,
+              avatar: member.avatar
+            } as PUPPET.payloads.Contact;
+          }
+          const invitee = arrInfo[1].split(/“|”|"/)[1] || '';
+          const inviteeMember = memebrs.find(member => member.name === invitee);
+          if (inviteeMember) {
+            inviteeIdList.push(inviteeMember.id);
+          }
+        }
+
+        if (inviter && inviteeIdList.length > 0) {
+          this.emit('room-join', { inviteeIdList, inviterId: inviter.id, roomId });
+        }
+      }
+    }
+
+    // 你将\"彬 - Detail\"移出了群聊
+    if (text?.includes('移出了群聊')) {
+      const removeedList = [];
+
+      let remover: PUPPET.payloads.Contact | undefined;
+
+      const arrInfo = text.split(/将|移出了群聊/);
+
+      if (arrInfo.length > 2 && arrInfo[0] && arrInfo[1]) {
+        if (arrInfo[0] == '你') {
+          remover = this.userInfo;
+          const name = arrInfo[1].split(/“|”|"/)[1] || '';
+
+          const removed = memebrs.find(member => member.name === name && member.id !== this.userInfo.id);
+          if (removed) {
+            removeedList.push(removed.id);
+          }
+        } else if (arrInfo[1] == '你') {
+          removeedList.push(this.userInfo.id);
+          const name = arrInfo[0].split(/“|”|"/)[1] || '';
+          const member = memebrs.find(member => member.name === name && member.id !== this.userInfo.id);
+          if (member) {
+            remover = {
+              id: member.id,
+              name: member.name,
+              avatar: member.avatar
+            } as PUPPET.payloads.Contact;
+          }
+        } else {
+          const name = arrInfo[0].split(/“|”|"/)[1] || '';
+          const member = memebrs.find(member => member.name === name && member.id !== this.userInfo.id);
+          if (member) {
+            remover = {
+              id: member.id,
+              name: member.name,
+              avatar: member.avatar
+            } as PUPPET.payloads.Contact;
+          }
+
+          const removeed = arrInfo[1].split(/“|”|"/)[1] || '';
+          const removedMember = memebrs.find(member => member.name === removeed && member.id !== this.userInfo.id);
+          if (removedMember) {
+            removeedList.push(removedMember.id);
+          }
+        }
+
+        if (remover && removeedList.length > 0) {
+          this.emit('room-leave', { removeeIdList: removeedList, removerId: remover.id, roomId });
+        }
+      }
+    }
+  };
 
   private async normalizedMsg(message: RecvMsg) {
     let type = PUPPET.types.Message.Unknown;
@@ -1134,17 +1298,19 @@ class PuppetBridge extends PUPPET.Puppet {
       } as PuppetRoom);
     }
 
-    this.messageStore.set(payload.id, payload);
-
-    this.emit('message', { messageId: payload.id } as EventMessage);
+    if (this.isRoomOps(message)) {
+      this.roomMsgHandler(payload);
+    } else {
+      log.info('PuppetBridge', 'onMessage() message payload %s', jsonStringify(payload));
+      this.messageStore.set(payload.id, payload);
+      this.emit('message', { messageId: payload.id } as EventMessage);
+    }
   }
 
   private async onMessage(message: RecvMsg | RecvScanMsg): Promise<void> {
     log.verbose('PuppetBridge', 'onMessage()');
 
     if (!message || !this.isReady) return;
-
-    log.info('PuppetBridge', 'onMessage() message %s', jsonStringify(message));
 
     if (this.isRecvScanMsg(message)) {
       this.scanMsgHandler(message);
