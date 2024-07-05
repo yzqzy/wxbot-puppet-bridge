@@ -957,9 +957,52 @@ class PuppetBridge extends PUPPET.Puppet {
   private isRoomOps = (message: RecvMsg) => {
     return [10000, 10002].some(code => code === message.type.valueOf());
   };
+  private getMemberByUserName = (userName: string, room: PuppetRoom, forceUpdate = false) => {
+    const name = userName.split(/“|”|"/)[1] || '';
+    const memebrs = room.members || [];
+    const member = memebrs.find(member => member.name === name);
+    return member;
+  };
+  private getOpsRelationship = (contactNames: string[], room: PuppetRoom, forceUpdate = false) => {
+    let contact: PUPPET.payloads.Contact | undefined;
 
-  private getOpsRelationship = (text: string) => {
-    // TODO
+    const contactIds = [];
+
+    if (contactNames[0] == '你') {
+      contact = this.userInfo;
+      const member = this.getMemberByUserName(contactNames[1], room, forceUpdate);
+      if (member) {
+        contactIds.push(member.id);
+      }
+    } else if (contactNames[1] === '你') {
+      contactIds.push(this.userInfo.id);
+      const member = this.getMemberByUserName(contactNames[0], room, forceUpdate);
+      if (member) {
+        contact = {
+          id: member.id,
+          name: member.name,
+          avatar: member.avatar
+        } as PUPPET.payloads.Contact;
+      }
+    } else {
+      const opsMember = this.getMemberByUserName(contactNames[0], room, forceUpdate);
+      if (opsMember) {
+        contact = {
+          id: opsMember.id,
+          name: opsMember.name,
+          avatar: opsMember.avatar
+        } as PUPPET.payloads.Contact;
+      }
+      const member = this.getMemberByUserName(contactNames[1], room, forceUpdate);
+      if (member) {
+        contactIds.push(member.id);
+      }
+    }
+
+    return {
+      contact,
+      contactIds
+    };
   };
 
   private roomMsgHandler = async (message: Message) => {
@@ -979,25 +1022,24 @@ class PuppetBridge extends PUPPET.Puppet {
     if (text?.includes('修改群名为')) {
       let topic = '';
       const oldTopic = room ? room.topic : '';
-      const arrInfo = text.split('修改群名为');
+      const contactNames = text.split('修改群名为');
 
       let changer: PUPPET.payloads.Contact | undefined;
 
-      log.info('PuppetBridge', 'roomMsg() arrInfo %s', arrInfo);
+      log.info('PuppetBridge', 'roomMsg() contactNames %s', contactNames);
 
-      if (arrInfo[0]) {
-        topic = arrInfo[1]?.split(/“|”|"/)[1] || '';
+      if (contactNames[0]) {
+        topic = contactNames[1]?.split(/“|”|"/)[1] || '';
 
         log.info('PuppetBridge', 'roomMsg() topic %s', topic);
 
         room.topic = topic;
         this.roomStore.set(roomId, room);
 
-        if (arrInfo[0] == '你') {
+        if (contactNames[0] == '你') {
           changer = this.userInfo;
         } else {
-          const name = arrInfo[0].split(/“|”|"/)[1] || '';
-          const member = memebrs.find(member => member.name === name);
+          const member = this.getMemberByUserName(contactNames[0], room);
           if (member) {
             changer = {
               id: member.id,
@@ -1011,108 +1053,43 @@ class PuppetBridge extends PUPPET.Puppet {
       }
     }
 
-    // 将\"heora\"添加为群管理员
-    // TODO: 群管理员变更
+    // 你将\"heora\"添加为群管理员
+    // "heora"将\"彬 - Detail\"添加为群管理员
+    if (text?.includes('添加为群管理员')) {
+      const contactNames = text.split(/将|添加为群管理员/);
+
+      if (contactNames.length > 2 && contactNames[0] && contactNames[1]) {
+        const { contact, contactIds } = this.getOpsRelationship(contactNames, room);
+
+        if (contact && contactIds.length > 0) {
+          this.emit('room-admin', { adminIdList: contactIds, operatorId: contact.id, roomId });
+        }
+      }
+    }
 
     // 你邀请\"彬 - Detail\"加入了群聊
     // "heora"邀请\"彬 - Detail"\加入了群聊
     if (text?.includes('加入了群聊')) {
-      const inviteeIdList = [];
+      const contactNames = text.split(/邀请|加入了群聊/);
 
-      let inviter: PUPPET.payloads.Contact | undefined;
+      if (contactNames.length > 2 && contactNames[0] && contactNames[1]) {
+        const { contact, contactIds } = this.getOpsRelationship(contactNames, room, true);
 
-      const arrInfo = text.split(/邀请|加入了群聊/);
-
-      if (arrInfo.length > 2 && arrInfo[0] && arrInfo[1]) {
-        if (arrInfo[0] == '你') {
-          inviter = this.userInfo;
-          const name = arrInfo[1].split(/“|”|"/)[1] || '';
-          const invitee = memebrs.find(member => member.name === name);
-          if (invitee) {
-            inviteeIdList.push(invitee.id);
-          }
-        } else if (arrInfo[1] === '你') {
-          inviteeIdList.push(this.userInfo.id);
-          const name = arrInfo[0].split(/“|”|"/)[1] || '';
-          const member = memebrs.find(member => member.name === name);
-          if (member) {
-            inviter = {
-              id: member.id,
-              name: member.name,
-              avatar: member.avatar
-            } as PUPPET.payloads.Contact;
-          }
-        } else {
-          const name = arrInfo[0].split(/“|”|"/)[1] || '';
-          const member = memebrs.find(member => member.name === name);
-          if (member) {
-            inviter = {
-              id: member.id,
-              name: member.name,
-              avatar: member.avatar
-            } as PUPPET.payloads.Contact;
-          }
-          const invitee = arrInfo[1].split(/“|”|"/)[1] || '';
-          const inviteeMember = memebrs.find(member => member.name === invitee);
-          if (inviteeMember) {
-            inviteeIdList.push(inviteeMember.id);
-          }
-        }
-
-        if (inviter && inviteeIdList.length > 0) {
-          this.emit('room-join', { inviteeIdList, inviterId: inviter.id, roomId });
+        if (contact && contactIds.length > 0) {
+          this.emit('room-join', { inviteeIdList: contactIds, inviterId: contact.id, roomId });
         }
       }
     }
 
     // 你将\"彬 - Detail\"移出了群聊
     if (text?.includes('移出了群聊')) {
-      const removeedList = [];
+      const contactNames = text.split(/将|移出了群聊/);
 
-      let remover: PUPPET.payloads.Contact | undefined;
+      if (contactNames.length > 2 && contactNames[0] && contactNames[1]) {
+        const { contact, contactIds } = this.getOpsRelationship(contactNames, room);
 
-      const arrInfo = text.split(/将|移出了群聊/);
-
-      if (arrInfo.length > 2 && arrInfo[0] && arrInfo[1]) {
-        if (arrInfo[0] == '你') {
-          remover = this.userInfo;
-          const name = arrInfo[1].split(/“|”|"/)[1] || '';
-
-          const removed = memebrs.find(member => member.name === name && member.id !== this.userInfo.id);
-          if (removed) {
-            removeedList.push(removed.id);
-          }
-        } else if (arrInfo[1] == '你') {
-          removeedList.push(this.userInfo.id);
-          const name = arrInfo[0].split(/“|”|"/)[1] || '';
-          const member = memebrs.find(member => member.name === name && member.id !== this.userInfo.id);
-          if (member) {
-            remover = {
-              id: member.id,
-              name: member.name,
-              avatar: member.avatar
-            } as PUPPET.payloads.Contact;
-          }
-        } else {
-          const name = arrInfo[0].split(/“|”|"/)[1] || '';
-          const member = memebrs.find(member => member.name === name && member.id !== this.userInfo.id);
-          if (member) {
-            remover = {
-              id: member.id,
-              name: member.name,
-              avatar: member.avatar
-            } as PUPPET.payloads.Contact;
-          }
-
-          const removeed = arrInfo[1].split(/“|”|"/)[1] || '';
-          const removedMember = memebrs.find(member => member.name === removeed && member.id !== this.userInfo.id);
-          if (removedMember) {
-            removeedList.push(removedMember.id);
-          }
-        }
-
-        if (remover && removeedList.length > 0) {
-          this.emit('room-leave', { removeeIdList: removeedList, removerId: remover.id, roomId });
+        if (contact && contactIds.length > 0) {
+          this.emit('room-leave', { removeeIdList: contactIds, removerId: contact.id, roomId });
         }
       }
     }

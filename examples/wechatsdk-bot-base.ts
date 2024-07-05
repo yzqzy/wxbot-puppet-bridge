@@ -4,7 +4,6 @@ import { FileBox } from 'file-box';
 import path from 'path';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
-import { createDirIfNotExist } from '@src/shared';
 
 async function main() {
   const puppet = new PuppetBridge({

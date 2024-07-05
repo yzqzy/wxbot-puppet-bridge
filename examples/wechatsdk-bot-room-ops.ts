@@ -2,11 +2,9 @@ import { WechatyBuilder, log } from 'wechaty';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
 
-// TODO: 功能待实现
-
 async function main() {
   const puppet = new PuppetBridge({
-    apiUrl: 'http://127.0.0.1:8888',
+    apiUrl: 'http://192.168.1.13:8888',
     protocol: 'ws'
   });
 
