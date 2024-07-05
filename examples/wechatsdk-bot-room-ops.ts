@@ -4,7 +4,7 @@ import { jsonStringify } from '@src/shared/tools';
 
 async function main() {
   const puppet = new PuppetBridge({
-    apiUrl: 'http://192.168.1.13:8888',
+    apiUrl: 'http://127.0.0.1:8888',
     protocol: 'ws'
   });
 

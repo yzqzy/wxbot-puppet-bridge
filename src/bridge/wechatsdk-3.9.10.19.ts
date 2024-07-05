@@ -957,31 +957,33 @@ class PuppetBridge extends PUPPET.Puppet {
   private isRoomOps = (message: RecvMsg) => {
     return [10000, 10002].some(code => code === message.type.valueOf());
   };
-  private getMemberByUserName = async (userName: string, room: PuppetRoom, forceUpdate = false) => {
+  private findMemberByName = (name: string, room: PuppetRoom) => {
+    const members = room.members || [];
+    return members.find(member => member.name === name);
+  };
+  private getMemberByUserName = async (userName: string, room: PuppetRoom) => {
     const name = userName.split(/“|”|"/)[1] || '';
 
-    if (forceUpdate) {
+    if (!this.findMemberByName(name, room)) {
       await this.updateRoomPayload(room, true);
     }
 
-    const members = room.members || [];
-    const member = members.find(member => member.name === name);
-    return member;
+    return this.findMemberByName(name, room);
   };
-  private getOpsRelationship = async (contactNames: string[], room: PuppetRoom, forceUpdate = false) => {
+  private getOpsRelationship = async (contactNames: string[], room: PuppetRoom) => {
     let contact: PUPPET.payloads.Contact | undefined;
 
     const contactIds = [];
 
     if (contactNames[0] == '你') {
       contact = this.userInfo;
-      const member = await this.getMemberByUserName(contactNames[1], room, forceUpdate);
+      const member = await this.getMemberByUserName(contactNames[1], room);
       if (member) {
         contactIds.push(member.id);
       }
     } else if (contactNames[1] === '你') {
       contactIds.push(this.userInfo.id);
-      const member = await this.getMemberByUserName(contactNames[0], room, forceUpdate);
+      const member = await this.getMemberByUserName(contactNames[0], room);
       if (member) {
         contact = {
           id: member.id,
@@ -990,7 +992,7 @@ class PuppetBridge extends PUPPET.Puppet {
         } as PUPPET.payloads.Contact;
       }
     } else {
-      const opsMember = await this.getMemberByUserName(contactNames[0], room, forceUpdate);
+      const opsMember = await this.getMemberByUserName(contactNames[0], room);
       if (opsMember) {
         contact = {
           id: opsMember.id,
@@ -998,7 +1000,7 @@ class PuppetBridge extends PUPPET.Puppet {
           avatar: opsMember.avatar
         } as PUPPET.payloads.Contact;
       }
-      const member = await this.getMemberByUserName(contactNames[1], room, forceUpdate);
+      const member = await this.getMemberByUserName(contactNames[1], room);
       if (member) {
         contactIds.push(member.id);
       }
@@ -1077,7 +1079,7 @@ class PuppetBridge extends PUPPET.Puppet {
       const contactNames = text.split(/邀请|加入了群聊/);
 
       if (contactNames.length > 2 && contactNames[0] && contactNames[1]) {
-        const { contact, contactIds } = await this.getOpsRelationship(contactNames, room, true);
+        const { contact, contactIds } = await this.getOpsRelationship(contactNames, room);
 
         if (contact && contactIds.length > 0) {
           this.emit('room-join', { inviteeIdList: contactIds, inviterId: contact.id, roomId });
