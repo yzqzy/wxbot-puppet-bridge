@@ -12,7 +12,9 @@ async function main() {
     protocol: 'ws'
   });
 
-  puppet.on('scan', async options => {
+  const bot = WechatyBuilder.build({ name: 'wechatsdk-bot', puppet });
+
+  bot.on('scan', async options => {
     const { status, qrcode } = options;
 
     if (status === ScanStatus.Waiting || status === ScanStatus.Timeout) {
@@ -25,27 +27,31 @@ async function main() {
     log.info('StarterBot', 'onScan: %s(%s)', ScanStatus[status], status);
   });
 
-  puppet.on('login', user => {
+  bot.on('login', user => {
     log.info('User login: ', jsonStringify(user));
   });
 
-  puppet.on('ready', () => {
+  bot.on('ready', () => {
     log.info('Puppet is ready');
   });
 
-  puppet.on('message', message => {
+  bot.on('message', message => {
     log.info('Message: ', jsonStringify(message));
   });
 
-  puppet.on('logout', user => {
+  bot.on('logout', user => {
     log.info('User logout: ', jsonStringify(user));
   });
 
-  puppet.on('error', error => {
+  bot.on('error', error => {
     log.error('Puppet error:', error.data);
   });
 
-  await puppet.start();
+  await bot.start();
 }
 
-main().catch(console.error);
+main()
+  .then(() => {
+    log.info('StarterBot', 'Starter Bot started.');
+  })
+  .catch(console.error);

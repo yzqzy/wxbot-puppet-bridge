@@ -826,11 +826,11 @@ class PuppetBridge extends PUPPET.Puppet {
       room.topic = profile.data.userName || '';
       room.avatar = profile.data.smallHeadImgUrl;
 
-      const memebrsData = await this.bridge.getChatRoomMemberList(room.id);
-      const members = memebrsData.members;
+      const membersData = await this.bridge.getChatRoomMemberList(room.id);
+      const members = membersData.members;
 
-      room.ownerId = memebrsData.ownerUserName;
-      room.adminIdList = memebrsData.chatroomAdminUserNames;
+      room.ownerId = membersData.ownerUserName;
+      room.adminIdList = membersData.chatroomAdminUserNames;
       room.memberIdList = members.map(member => member.userName);
       room.members = members.map(member => {
         return {
@@ -957,26 +957,31 @@ class PuppetBridge extends PUPPET.Puppet {
   private isRoomOps = (message: RecvMsg) => {
     return [10000, 10002].some(code => code === message.type.valueOf());
   };
-  private getMemberByUserName = (userName: string, room: PuppetRoom, forceUpdate = false) => {
+  private getMemberByUserName = async (userName: string, room: PuppetRoom, forceUpdate = false) => {
     const name = userName.split(/“|”|"/)[1] || '';
-    const memebrs = room.members || [];
-    const member = memebrs.find(member => member.name === name);
+
+    if (forceUpdate) {
+      await this.updateRoomPayload(room, true);
+    }
+
+    const members = room.members || [];
+    const member = members.find(member => member.name === name);
     return member;
   };
-  private getOpsRelationship = (contactNames: string[], room: PuppetRoom, forceUpdate = false) => {
+  private getOpsRelationship = async (contactNames: string[], room: PuppetRoom, forceUpdate = false) => {
     let contact: PUPPET.payloads.Contact | undefined;
 
     const contactIds = [];
 
     if (contactNames[0] == '你') {
       contact = this.userInfo;
-      const member = this.getMemberByUserName(contactNames[1], room, forceUpdate);
+      const member = await this.getMemberByUserName(contactNames[1], room, forceUpdate);
       if (member) {
         contactIds.push(member.id);
       }
     } else if (contactNames[1] === '你') {
       contactIds.push(this.userInfo.id);
-      const member = this.getMemberByUserName(contactNames[0], room, forceUpdate);
+      const member = await this.getMemberByUserName(contactNames[0], room, forceUpdate);
       if (member) {
         contact = {
           id: member.id,
@@ -985,7 +990,7 @@ class PuppetBridge extends PUPPET.Puppet {
         } as PUPPET.payloads.Contact;
       }
     } else {
-      const opsMember = this.getMemberByUserName(contactNames[0], room, forceUpdate);
+      const opsMember = await this.getMemberByUserName(contactNames[0], room, forceUpdate);
       if (opsMember) {
         contact = {
           id: opsMember.id,
@@ -993,7 +998,7 @@ class PuppetBridge extends PUPPET.Puppet {
           avatar: opsMember.avatar
         } as PUPPET.payloads.Contact;
       }
-      const member = this.getMemberByUserName(contactNames[1], room, forceUpdate);
+      const member = await this.getMemberByUserName(contactNames[1], room, forceUpdate);
       if (member) {
         contactIds.push(member.id);
       }
@@ -1014,7 +1019,6 @@ class PuppetBridge extends PUPPET.Puppet {
     if (!roomId) return;
 
     const room = this.roomStore.get(roomId);
-    const memebrs = room?.members || [];
     if (!room) return;
 
     // "heora"修改群名为“wxbot1234”
@@ -1039,7 +1043,7 @@ class PuppetBridge extends PUPPET.Puppet {
         if (contactNames[0] == '你') {
           changer = this.userInfo;
         } else {
-          const member = this.getMemberByUserName(contactNames[0], room);
+          const member = await this.getMemberByUserName(contactNames[0], room);
           if (member) {
             changer = {
               id: member.id,
@@ -1059,7 +1063,7 @@ class PuppetBridge extends PUPPET.Puppet {
       const contactNames = text.split(/将|添加为群管理员/);
 
       if (contactNames.length > 2 && contactNames[0] && contactNames[1]) {
-        const { contact, contactIds } = this.getOpsRelationship(contactNames, room);
+        const { contact, contactIds } = await this.getOpsRelationship(contactNames, room);
 
         if (contact && contactIds.length > 0) {
           this.emit('room-admin', { adminIdList: contactIds, operatorId: contact.id, roomId });
@@ -1073,7 +1077,7 @@ class PuppetBridge extends PUPPET.Puppet {
       const contactNames = text.split(/邀请|加入了群聊/);
 
       if (contactNames.length > 2 && contactNames[0] && contactNames[1]) {
-        const { contact, contactIds } = this.getOpsRelationship(contactNames, room, true);
+        const { contact, contactIds } = await this.getOpsRelationship(contactNames, room, true);
 
         if (contact && contactIds.length > 0) {
           this.emit('room-join', { inviteeIdList: contactIds, inviterId: contact.id, roomId });
@@ -1086,7 +1090,7 @@ class PuppetBridge extends PUPPET.Puppet {
       const contactNames = text.split(/将|移出了群聊/);
 
       if (contactNames.length > 2 && contactNames[0] && contactNames[1]) {
-        const { contact, contactIds } = this.getOpsRelationship(contactNames, room);
+        const { contact, contactIds } = await this.getOpsRelationship(contactNames, room);
 
         if (contact && contactIds.length > 0) {
           this.emit('room-leave', { removeeIdList: contactIds, removerId: contact.id, roomId });

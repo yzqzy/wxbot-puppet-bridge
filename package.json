@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "nodemon --config ./examples/nodemon.json",
     "start": "ts-node --files -r tsconfig-paths/register ./examples/index.ts",
-    "build": "npx ts-node build.ts",
-    "test": "node tests/index.js"
+    "build": "npx ts-node build.ts"
   },
   "main": "dist/mod.js",
   "engines": {

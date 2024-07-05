@@ -1,1 +1,0 @@
-require('./bridge-wechatsdk-base');
