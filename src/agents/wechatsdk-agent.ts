@@ -343,6 +343,16 @@ class Bridge extends EventEmitter {
     return res.data;
   }
 
+  async roomInvitation(url: string, inviteType: 0 | 1) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.chatRoomInvitation(url, inviteType);
+
+    if (res.error_code !== 10000) throw new Error('room invitation failed');
+
+    return res.data;
+  }
+
   private catchErrors() {
     process.on('uncaughtException', this.stop.bind(this));
     process.on('SIGINT', this.stop.bind(this));

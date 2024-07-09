@@ -202,6 +202,18 @@ class WeChatSdkApi {
     });
   }
 
+  chatRoomInvitation(url: string, inviteType: 0 | 1) {
+    return this.reqest.post<
+      DataResult<{
+        url: string;
+      }>
+    >('/api/', {
+      type: 10089,
+      url,
+      inviteType
+    });
+  }
+
   sendText(userName: string, content: string, atUserList: string[] = []) {
     return this.reqest.post<MessageResult>('/api/', {
       type: 10009,

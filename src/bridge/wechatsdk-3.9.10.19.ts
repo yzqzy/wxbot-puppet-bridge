@@ -1,12 +1,14 @@
-import * as PUPPET from 'wechaty-puppet';
-import { FileBoxInterface, FileBox, FileBoxType } from 'file-box';
-import xml2js from 'xml2js';
-import readXml from 'xmlreader';
 import fs from 'fs';
 import path from 'path';
 import fsPromise from 'fs/promises';
-import { log } from 'wechaty-puppet';
 
+import axios from 'axios';
+import xml2js from 'xml2js';
+import readXml from 'xmlreader';
+import { FileBoxInterface, FileBox, FileBoxType } from 'file-box';
+
+import * as PUPPET from 'wechaty-puppet';
+import { log } from 'wechaty-puppet';
 import type {
   EventError,
   EventScan,
@@ -18,6 +20,7 @@ import type {
   EventRoomInvite
 } from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
+
 import Bridge from '@src/agents/wechatsdk-agent';
 import { delaySync, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
@@ -436,7 +439,39 @@ class PuppetBridge extends PUPPET.Puppet {
     const url = content?.url as string;
     if (!url) throw new Error('url not found');
 
-    // TODO
+    try {
+      const isLink = message.type === 5;
+
+      const data = await this.bridge.roomInvitation(url, isLink ? 0 : 1);
+      const confrmUrl = data.data.url;
+
+      const headers = {
+        Host: 'support.weixin.qq.com',
+        Connection: 'keep-alive',
+        'Cache-Control': 'max-age=0',
+        'Upgrade-Insecure-Requests': '1',
+        Origin: 'https://support.weixin.qq.com',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x63090a13) XWEB/9185',
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-User': '?1',
+        'Sec-Fetch-Dest': 'document',
+        Referer: confrmUrl,
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Accept-Encoding': 'gzip, deflate',
+        'Content-Length': '0'
+      };
+
+      await axios.post(confrmUrl, {}, { headers: isLink ? {} : headers });
+
+      log.info('roomInvitationAccept success');
+    } catch (error) {
+      log.error('roomInvitationAccept fail:', error);
+    }
   }
 
   // Message --------------

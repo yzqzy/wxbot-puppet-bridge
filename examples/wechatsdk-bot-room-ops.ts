@@ -24,6 +24,7 @@ async function main() {
   bot.on('room-invite', async roomInvitation => {
     log.info('Bot room invite: ', jsonStringify(roomInvitation));
     try {
+      await delaySync(1000 * 3);
       await roomInvitation.accept();
     } catch (error) {
       log.error('Bot room invite error: ', error.message);
