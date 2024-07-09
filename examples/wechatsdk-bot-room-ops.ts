@@ -3,6 +3,50 @@ import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { delaySync, jsonStringify } from '@src/shared/tools';
 import { ContactInterface, WechatyInterface } from 'wechaty/impls';
 
+async function main() {
+  const puppet = new PuppetBridge({
+    apiUrl: 'http://127.0.0.1:8888',
+    protocol: 'ws'
+  });
+
+  const bot = WechatyBuilder.build({ name: 'wechatsdk-bot', puppet });
+
+  bot.on('login', user => {
+    log.info('Bot use login: ', jsonStringify(user));
+  });
+
+  bot.on('ready', () => {
+    log.info('Bot is ready');
+
+    roomOps(bot);
+  });
+
+  bot.on('room-invite', async roomInvitation => {
+    log.info('Bot room invite: ', jsonStringify(roomInvitation));
+    try {
+      await roomInvitation.accept();
+    } catch (error) {
+      log.error('Bot room invite error: ', error.message);
+    }
+  });
+
+  bot.on('logout', user => {
+    log.info('Bot user logout: ', jsonStringify(user));
+  });
+
+  bot.on('error', error => {
+    log.error('Bot error:', error.message);
+  });
+
+  await bot.start();
+}
+
+main()
+  .then(() => log.info('StarterBot', 'Ready'))
+  .catch(console.error);
+
+// ------------------------------
+
 async function addMemberToRoom(bot: WechatyInterface, roomId: string, memberId: string) {
   log.info('addMemberToRoom: ', `roomId: ${roomId}, memberId: ${memberId}`);
 
@@ -149,45 +193,3 @@ async function roomOps(bot: WechatyInterface) {
     log.error('error: ', error.message);
   }
 }
-
-async function main() {
-  const puppet = new PuppetBridge({
-    apiUrl: 'http://127.0.0.1:8888',
-    protocol: 'ws'
-  });
-
-  const bot = WechatyBuilder.build({ name: 'wechatsdk-bot', puppet });
-
-  bot.on('login', user => {
-    log.info('Bot use login: ', jsonStringify(user));
-  });
-
-  bot.on('ready', () => {
-    log.info('Bot is ready');
-
-    roomOps(bot);
-  });
-
-  bot.on('room-invite', roomInvitation => {
-    log.info('Bot room invite: ', jsonStringify(roomInvitation));
-    try {
-      // TODO: handle room invitation
-    } catch (error) {
-      log.error('Bot room invite error: ', error.message);
-    }
-  });
-
-  bot.on('logout', user => {
-    log.info('Bot user logout: ', jsonStringify(user));
-  });
-
-  bot.on('error', error => {
-    log.error('Bot error:', error.message);
-  });
-
-  await bot.start();
-}
-
-main()
-  .then(() => log.info('StarterBot', 'Ready'))
-  .catch(console.error);

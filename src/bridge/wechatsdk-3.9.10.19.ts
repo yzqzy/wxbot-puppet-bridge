@@ -7,7 +7,16 @@ import path from 'path';
 import fsPromise from 'fs/promises';
 import { log } from 'wechaty-puppet';
 
-import type { EventError, EventScan, EventMessage, Message, Room, RoomMember, Contact } from 'wechaty-puppet/payloads';
+import type {
+  EventError,
+  EventScan,
+  EventMessage,
+  Message,
+  Room,
+  RoomMember,
+  Contact,
+  EventRoomInvite
+} from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import Bridge from '@src/agents/wechatsdk-agent';
 import { delaySync, jsonStringify } from '@src/shared/tools';
@@ -405,7 +414,7 @@ class PuppetBridge extends PUPPET.Puppet {
   override roomInvitationRawPayload(roomInvitationId: string): Promise<any>;
   override roomInvitationRawPayload(roomInvitationId: string): Promise<any> {
     log.verbose('PuppetBridge', 'roomInvitationRawPayload(%s)', roomInvitationId);
-    return this.promiseWrap(() => null);
+    return this.promiseWrap(() => this.messageStore.get(roomInvitationId));
   }
 
   override roomInvitationRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.RoomInvitation>;
@@ -414,13 +423,20 @@ class PuppetBridge extends PUPPET.Puppet {
     return this.promiseWrap(() => rawPayload);
   }
 
-  override roomInvitationAccept(roomInvitationId: string): Promise<void>;
-  override roomInvitationAccept(roomInvitationId: string): Promise<void> {
+  override async roomInvitationAccept(roomInvitationId: string): Promise<void>;
+  override async roomInvitationAccept(roomInvitationId: string): Promise<void> {
     log.verbose('PuppetBridge', 'roomInvitationAccept(%s)', roomInvitationId);
 
-    // TODO: accept room invitation
+    const message = this.messageStore.get(roomInvitationId);
+    if (!message) throw new Error('message not found');
 
-    return this.promiseWrap(() => {});
+    const content = await xmlDecrypt(message.text || '', message.type);
+    if (!content) throw new Error('content not found');
+
+    const url = content?.url as string;
+    if (!url) throw new Error('url not found');
+
+    // TODO
   }
 
   // Message --------------
@@ -1062,7 +1078,12 @@ class PuppetBridge extends PUPPET.Puppet {
   }
 
   private isRoomOps = (message: RecvMsg) => {
-    return [10000, 10002].some(code => code === message.type.valueOf());
+    const type = message.type.valueOf();
+    return [10000, 10002].some(code => code === type);
+  };
+  private isInviteMsg = (message: RecvMsg) => {
+    const type = message.type.valueOf();
+    return type === 14 && message.content.includes('邀请你加入群聊');
   };
   private findMemberByName = (name: string, room: PuppetRoom) => {
     const members = room.members || [];
@@ -1206,6 +1227,16 @@ class PuppetBridge extends PUPPET.Puppet {
         }
       }
     }
+  };
+
+  private inviteMsgHandler = (message: Message) => {
+    log.verbose('PuppetBridge', 'inviteMsg()');
+
+    log.info('PuppetBridge', 'inviteMsg() message %s', jsonStringify(message));
+
+    this.emit('room-invite', {
+      roomInvitationId: message.id
+    } as EventRoomInvite);
   };
 
   private async normalizedMsg(message: RecvMsg) {
@@ -1390,6 +1421,9 @@ class PuppetBridge extends PUPPET.Puppet {
 
     if (this.isRoomOps(message)) {
       this.roomMsgHandler(payload);
+    } else if (this.isInviteMsg(message)) {
+      this.inviteMsgHandler(payload);
+      this.messageStore.set(payload.id, payload);
     } else {
       log.info('PuppetBridge', 'onMessage() message payload %s', jsonStringify(payload));
       this.messageStore.set(payload.id, payload);
