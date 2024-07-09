@@ -1116,9 +1116,9 @@ class PuppetBridge extends PUPPET.Puppet {
     const type = message.type.valueOf();
     return [10000, 10002].some(code => code === type);
   };
-  private isInviteMsg = (message: RecvMsg) => {
+  private isInviteMsg = (message: Message) => {
     const type = message.type.valueOf();
-    return type === 14 && message.content.includes('邀请你加入群聊');
+    return type === 14 && message.text?.includes('邀请你加入群聊');
   };
   private findMemberByName = (name: string, room: PuppetRoom) => {
     const members = room.members || [];
@@ -1456,7 +1456,7 @@ class PuppetBridge extends PUPPET.Puppet {
 
     if (this.isRoomOps(message)) {
       this.roomMsgHandler(payload);
-    } else if (this.isInviteMsg(message)) {
+    } else if (this.isInviteMsg(payload)) {
       this.inviteMsgHandler(payload);
       this.messageStore.set(payload.id, payload);
     } else {
