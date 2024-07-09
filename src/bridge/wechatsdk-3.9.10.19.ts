@@ -24,6 +24,7 @@ interface PuppetOptions extends PUPPET.PuppetOptions {
 }
 
 interface PuppetRoom extends Room {
+  announce: string;
   members: RoomMember[];
 }
 interface PuppetContact extends Contact {}
@@ -150,6 +151,15 @@ class PuppetBridge extends PUPPET.Puppet {
     return this.roomStore.get(roomId) || null;
   }
 
+  override async roomAvatar(roomId: string): Promise<FileBoxInterface> {
+    log.verbose('PuppetBridge', 'roomAvatar(%s)', roomId);
+    const payload = await this.roomPayload(roomId);
+    if (payload.avatar) {
+      return FileBox.fromUrl(payload.avatar);
+    }
+    return FileBox.fromQRCode('http://weixin.qq.com/r/qymXj7DEO_1ErfTs93y5');
+  }
+
   override roomRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Room> {
     log.verbose('PuppetBridge', 'roomRawPayloadParser(%s)', JSON.stringify(rawPayload));
     return this.promiseWrap(() => {
@@ -166,15 +176,6 @@ class PuppetBridge extends PUPPET.Puppet {
   override roomPayload(roomId: string): Promise<PUPPET.payloads.Room | null> {
     log.verbose('PuppetBridge', 'roomPayload(%s)', roomId);
     return this.getRoom(roomId);
-  }
-
-  override async roomTopic(roomId: string): Promise<string>;
-  override async roomTopic(roomId: string, topic: string): Promise<void>;
-  override async roomTopic(roomId: unknown, topic?: unknown): Promise<void | string> {
-    log.verbose('PuppetBridge', 'roomTopic(%s, %s)', roomId, topic || '');
-    if (typeof roomId !== 'string') return this.promiseWrap(() => '');
-    const payload = await this.roomPayload(roomId);
-    return (payload && payload.topic) || '';
   }
 
   override roomSearch(query?: PUPPET.filters.Room | undefined): Promise<string[]> {
@@ -268,31 +269,135 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // Room ops --------------
 
+  override async roomTopic(roomId: string): Promise<string>;
+  override async roomTopic(roomId: string, topic: string): Promise<void>;
+  override async roomTopic(roomId: string, topic?: string | undefined): Promise<void | string> {
+    log.verbose('PuppetBridge', 'roomTopic(%s, %s)', roomId, topic || '');
+
+    const room = await this.getRoom(roomId);
+    if (!room) {
+      log.error('roomTopic: room not found');
+      return;
+    }
+
+    if (!topic || typeof topic !== 'string') {
+      return room.topic;
+    }
+
+    await this.bridge.modifyRoomTopic(roomId, topic);
+
+    room.topic = topic;
+    this.roomStore.set(roomId, room);
+
+    return topic;
+  }
+
+  override async roomAnnounce(roomId: string): Promise<string>;
+  override async roomAnnounce(roomId: string, text: string): Promise<void>;
+  override async roomAnnounce(roomId: string, text?: string | undefined): Promise<void | string> {
+    log.verbose('PuppetBridge', 'roomAnnounce(%s, %s)', roomId, text || '');
+
+    const room = await this.getRoom(roomId);
+    if (!room) {
+      log.error('roomAnnounce: room not found');
+      return;
+    }
+
+    if (!text || typeof text !== 'string') {
+      return room.announce || '';
+    }
+
+    await this.bridge.modifyRoomAnnouncement(roomId, text);
+
+    room.announce = text;
+    this.roomStore.set(roomId, room);
+
+    return text;
+  }
+
   override async roomAdd(roomId: string, contactId: string): Promise<void>;
   override async roomAdd(roomId: string, contactId: string, inviterId?: string): Promise<void> {
     log.verbose('PuppetBridge', 'roomAdd(%s, %s, %s)', roomId, contactId, inviterId || '');
 
-    // TODO: add contact to room
+    if (!roomId || !contactId) {
+      log.error('roomAdd: roomId or contactId not found');
+      return;
+    }
 
-    return this.promiseWrap(() => {});
+    log.info('roomAdd: %s, %s', roomId, contactId, inviterId);
+
+    const memberList = await this.roomMemberList(roomId);
+
+    if (memberList.includes(contactId)) {
+      log.info('contact already in room');
+      return;
+    }
+
+    if (memberList.length > 40) {
+      await this.bridge.inviteRoomMembers(roomId, [contactId]);
+      log.info('roomAdd success, invite room member');
+      return;
+    }
+
+    await this.bridge.addRoomMembers(roomId, [contactId]);
+    log.info('roomAdd success, add room member');
   }
 
   override async roomDel(roomId: string, contactId: string): Promise<void>;
   override async roomDel(roomId: string, contactId: string, reason?: string): Promise<void> {
     log.verbose('PuppetBridge', 'roomDel(%s, %s, %s)', roomId, contactId, reason || '');
 
-    // TODO: remove contact from room
+    if (!roomId || !contactId) {
+      log.error('roomDel: roomId or contactId not found');
+      return;
+    }
 
-    return this.promiseWrap(() => {});
+    log.info('roomDel: %s, %s', roomId, contactId, reason);
+
+    await this.bridge.removeRoomMembers(roomId, [contactId]);
+
+    log.info('roomDel success');
   }
 
   override async roomQuit(roomId: string): Promise<void>;
   override async roomQuit(roomId: string, reason?: string): Promise<void> {
     log.verbose('PuppetBridge', 'roomQuit(%s, %s)', roomId, reason || '');
 
-    // TODO: remove self from room
+    log.info('roomQuit: %s, %s', roomId, reason);
 
-    return this.promiseWrap(() => {});
+    if (!roomId) {
+      log.error('roomQuit: roomId not found');
+      return;
+    }
+
+    log.info('roomQuit: %s', roomId);
+
+    await this.bridge.quitRoom(roomId);
+
+    log.info('roomQuit success');
+  }
+
+  override async roomCreate(contactIdList: string[], topic?: string | undefined): Promise<string> {
+    log.verbose('PuppetBridge', 'roomCreate(%s, %s)', contactIdList, topic || '');
+
+    log.info('roomCreate: %s, %s', contactIdList, topic || '');
+
+    const data = await this.bridge.createRoom(contactIdList);
+    if (!data) return '';
+
+    log.info('roomCreate success: %s', data.data.chatroomUserName);
+
+    const roomId = data.data.chatroomUserName;
+
+    if (topic) {
+      await this.roomTopic(roomId, topic);
+    }
+
+    await this.updateRoomPayload({
+      id: roomId
+    } as PuppetRoom);
+
+    return roomId;
   }
 
   // Room Invitation --------------
@@ -823,13 +928,14 @@ class PuppetBridge extends PUPPET.Puppet {
 
       const { profile } = roomInfo;
 
+      room.ownerId = roomInfo.ownerUserName || '';
+      room.announce = roomInfo.announcement || '';
       room.topic = profile.data.userName || '';
       room.avatar = profile.data.smallHeadImgUrl;
 
       const membersData = await this.bridge.getChatRoomMemberList(room.id);
       const members = membersData.members;
 
-      room.ownerId = membersData.ownerUserName;
       room.adminIdList = membersData.chatroomAdminUserNames;
       room.memberIdList = members.map(member => member.userName);
       room.members = members.map(member => {
@@ -862,6 +968,8 @@ class PuppetBridge extends PUPPET.Puppet {
           avatar: room.smallHeadImgUrl,
           external: false,
           ownerId: room.ownerUserName || '',
+          announce: room.announcement || '',
+          topic: room.nickName || '',
           adminIdList: chatroomMembers.filter(member => member.isChatroomAdmin).map(member => member.userName) || [],
           memberIdList: room.userNameList || [],
           members: chatroomMembers.map(member => ({
@@ -869,8 +977,7 @@ class PuppetBridge extends PUPPET.Puppet {
             roomAlias: member.alias,
             avatar: member.smallHeadImgUrl,
             name: member.nickName
-          })),
-          topic: room.nickName || ''
+          }))
         } as PuppetRoom;
 
         this.roomStore.set(room.userName, roomPayload);

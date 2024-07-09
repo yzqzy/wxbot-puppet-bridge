@@ -11,7 +11,8 @@ import {
   User,
   LocationParams,
   NormalResult,
-  ChatRoomDetail
+  ChatRoomDetail,
+  ChatRoomMember
 } from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
@@ -111,7 +112,13 @@ class WeChatSdkApi {
   }
 
   createChatRoom(userNames: string[]) {
-    return this.reqest.post<NormalResult>('/api/', {
+    return this.reqest.post<
+      DataResult<{
+        chatroomUserName: string;
+        memberCount: number;
+        members: ChatRoomMember[];
+      }>
+    >('/api/', {
       type: 45,
       userNames
     });
@@ -132,7 +139,7 @@ class WeChatSdkApi {
     });
   }
 
-  exitChatRooom(chatroomUserName: string) {
+  quitChatRoom(chatroomUserName: string) {
     return this.reqest.post<NormalResult>('/api/', {
       type: 10028,
       chatroomUserName
@@ -147,17 +154,25 @@ class WeChatSdkApi {
     });
   }
 
-  deleteChatRoomMembers(chatroomUserName: string, userNames: string[]) {
+  modifyChatRoomAnnouncement(chatroomUserName: string, announcement: string) {
     return this.reqest.post<NormalResult>('/api/', {
-      type: 33,
+      type: 10052,
       chatroomUserName,
-      userNames
+      announcement
     });
   }
 
   addChatRoomMembers(chatroomUserName: string, userNames: string[]) {
     return this.reqest.post<NormalResult>('/api/', {
       type: 32,
+      chatroomUserName,
+      userNames
+    });
+  }
+
+  removeChatRoomMembers(chatroomUserName: string, userNames: string[]) {
+    return this.reqest.post<NormalResult>('/api/', {
+      type: 33,
       chatroomUserName,
       userNames
     });
@@ -179,7 +194,7 @@ class WeChatSdkApi {
     });
   }
 
-  deleteChatRoomManager(userName: string, chatroomUserName: string) {
+  removeChatRoomManager(userName: string, chatroomUserName: string) {
     return this.reqest.post<NormalResult>('/api/', {
       type: 50,
       userName,

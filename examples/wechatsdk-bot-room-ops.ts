@@ -1,6 +1,154 @@
 import { WechatyBuilder, log } from 'wechaty';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
-import { jsonStringify } from '@src/shared/tools';
+import { delaySync, jsonStringify } from '@src/shared/tools';
+import { ContactInterface, WechatyInterface } from 'wechaty/impls';
+
+async function addMemberToRoom(bot: WechatyInterface, roomId: string, memberId: string) {
+  log.info('addMemberToRoom: ', `roomId: ${roomId}, memberId: ${memberId}`);
+
+  try {
+    const room = await bot.Room.find({ id: roomId });
+    const contact = await bot.Contact.find({ id: memberId });
+
+    console.log('room:', room);
+    console.log('contact:', contact);
+
+    if (!room || !contact) {
+      log.info('addMemberToRoom error: room or contact not found');
+      return;
+    }
+
+    await room.add(contact);
+
+    log.info('addMemberToRoom success');
+  } catch (error) {
+    log.info('addMemberToRoom error: ', error.message);
+  }
+}
+
+async function removeMemberFromRoom(bot: WechatyInterface, roomId: string, memberId: string) {
+  log.info('removeMemberFromRoom:', `roomId: ${roomId}, memberId: ${memberId}`);
+
+  try {
+    const room = await bot.Room.find({ id: roomId });
+    const contact = await bot.Contact.find({ id: memberId });
+
+    console.log('room:', room);
+    console.log('contact:', contact);
+
+    if (!room || !contact) {
+      log.info('removeMemberFromRoom error: room or contact not found');
+      return;
+    }
+
+    await room.remove(contact);
+
+    log.info('removeMemberFromRoom success');
+  } catch (error) {
+    log.info('removeMemberFromRoom error: ', error.message);
+  }
+}
+
+async function modifyRoomTopic(bot: WechatyInterface, roomId: string, topic: string) {
+  log.info('modifyRoomTopic: ', `roomId: ${roomId}, topic: ${topic}`);
+
+  try {
+    const room = await bot.Room.find({ id: roomId });
+
+    if (!room) {
+      log.info('modifyRoomTopic error: room not found');
+      return;
+    }
+
+    await room.topic(topic);
+
+    log.info('modifyRoomTopic success');
+  } catch (error) {
+    log.info('modifyRoomTopic error: ', error.message);
+  }
+}
+
+async function roomAnnouncement(bot: WechatyInterface, roomId: string, text: string) {
+  try {
+    log.info('roomAnnouncement: ', `roomId: ${roomId}, text: ${text}`);
+
+    const room = await bot.Room.find({ id: roomId });
+
+    if (!room) {
+      log.info('roomAnnouncement error: room not found');
+      return;
+    }
+
+    await room.announce(text);
+
+    log.info('roomAnnouncement success');
+  } catch (error) {
+    log.info('roomAnnouncement error: ', error.message);
+  }
+}
+
+async function createRoom(bot: WechatyInterface, members: string[], topic: string) {
+  log.info('createRoom:', topic);
+
+  const contacts = await Promise.all(
+    members.map(async member => {
+      return bot.Contact.find({ id: member });
+    })
+  );
+
+  try {
+    const room = await bot.Room.create(contacts as ContactInterface[], topic);
+
+    log.info('createRoom success: ', `roomId: ${room.id}`);
+
+    return room;
+  } catch (error) {
+    log.info('createRoom error: ', error.message);
+  }
+}
+
+async function exitRoom(bot: WechatyInterface, roomId: string) {
+  log.info('exitRoom:', roomId);
+
+  try {
+    const room = await bot.Room.find({ id: roomId });
+
+    if (!room) {
+      log.info('exitRoom error: room not found');
+      return;
+    }
+
+    await room.quit();
+
+    log.info('exitRoom success');
+  } catch (error) {
+    log.info('exitRoom error: ', error.message);
+  }
+}
+
+async function roomOps(bot: WechatyInterface) {
+  try {
+    const roomId = '44551008263@chatroom';
+    // await modifyRoomTopic(bot, roomId, 'wechaty-bot-room-ops');
+    // await addMemberToRoom(bot, roomId, 'wxid_xxxx');
+    // await removeMemberFromRoom(bot, roomId, 'wxid_xxxx');
+    // await roomAnnouncement(bot, roomId, 'public announcement, test 123.');
+  } catch (error) {
+    log.error('roomOps error: ', error.message);
+  }
+
+  try {
+    // const contactIds = ['wxid_xxxx', 'wxid_xxxx', 'wxid_xxxx'];
+    // const room = await createRoom(bot, contactIds, 'wechaty-puppet-service');
+    // if (!room) return;
+    // await delaySync(1000 * 3);
+    // await room.say('wechaty-puppet-service room created');
+    // await delaySync(1000 * 3);
+    // await exitRoom(bot, room.id);
+  } catch (error) {
+    log.error('error: ', error.message);
+  }
+}
 
 async function main() {
   const puppet = new PuppetBridge({
@@ -16,23 +164,10 @@ async function main() {
 
   bot.on('ready', () => {
     log.info('Bot is ready');
+
+    roomOps(bot);
   });
 
-  bot.on('room-join', (room, inviteeList, inviter) => {
-    log.info('Bot room join: ', jsonStringify(room));
-    log.info('Bot room join inviteeList: ', jsonStringify(inviteeList));
-    log.info('Bot room join inviter: ', jsonStringify(inviter));
-  });
-  bot.on('room-leave', (room, leaverList) => {
-    log.info('Bot room leave: ', jsonStringify(room));
-    log.info('Bot room leave leaverList: ', jsonStringify(leaverList));
-  });
-  bot.on('room-topic', (room, newTopic, oldTopic, changer) => {
-    log.info('Bot room topic: ', jsonStringify(room));
-    log.info('Bot room topic newTopic: ', newTopic);
-    log.info('Bot room topic oldTopic: ', oldTopic);
-    log.info('Bot room topic changer: ', jsonStringify(changer));
-  });
   bot.on('room-invite', roomInvitation => {
     log.info('Bot room invite: ', jsonStringify(roomInvitation));
     try {

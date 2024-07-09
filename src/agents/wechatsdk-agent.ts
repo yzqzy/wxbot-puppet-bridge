@@ -234,6 +234,115 @@ class Bridge extends EventEmitter {
     return res.data;
   }
 
+  async createRoom(contactIds: string[]) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.createChatRoom(contactIds);
+    if (res.error_code !== 10000) throw new Error('create chatroom failed');
+
+    return res.data;
+  }
+
+  async destoryRoom(chatroomId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.destoryChatRoom(chatroomId);
+
+    if (res.error_code !== 10000) throw new Error('destroy chatroom failed');
+
+    return res.data;
+  }
+
+  async transferRoomOwner(chatroomId: string, contactId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.transferChatRoomOwner(chatroomId, contactId);
+
+    if (res.error_code !== 10000) throw new Error('transfer chatroom owner failed');
+
+    return res.data;
+  }
+
+  async quitRoom(chatroomId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.quitChatRoom(chatroomId);
+
+    if (res.error_code !== 10000) throw new Error('exit chatroom failed');
+
+    return res.data;
+  }
+
+  async modifyRoomTopic(chatroomId: string, topic: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.modifyChatRoomName(chatroomId, topic);
+
+    if (res.error_code !== 10000) throw new Error('modify room topic failed');
+
+    return res.data;
+  }
+
+  async modifyRoomAnnouncement(chatroomId: string, announcement: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.modifyChatRoomAnnouncement(chatroomId, announcement);
+
+    if (res.error_code !== 10000) throw new Error('modify room announcement failed');
+
+    return res.data;
+  }
+
+  async addRoomMembers(chatroomId: string, contactIds: string[]) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.addChatRoomMembers(chatroomId, contactIds);
+
+    if (res.error_code !== 10000) throw new Error('add room members failed');
+
+    return res.data;
+  }
+
+  async removeRoomMembers(chatroomId: string, contactIds: string[]) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.removeChatRoomMembers(chatroomId, contactIds);
+
+    if (res.error_code !== 10000) throw new Error('remove room members failed');
+
+    return res.data;
+  }
+
+  async inviteRoomMembers(chatroomId: string, contactIds: string[]) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.inviteChatRoomMembers(chatroomId, contactIds);
+
+    if (res.error_code !== 10000) throw new Error('invite room member failed');
+
+    return res.data;
+  }
+
+  async addRoomManager(chatroomId: string, contactId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.addChatRoomManager(chatroomId, contactId);
+
+    if (res.error_code !== 10000) throw new Error('add room manager failed');
+
+    return res.data;
+  }
+
+  async removeRoomManager(chatroomId: string, contactId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.removeChatRoomManager(chatroomId, contactId);
+
+    if (res.error_code !== 10000) throw new Error('remove room manager failed');
+
+    return res.data;
+  }
+
   private catchErrors() {
     process.on('uncaughtException', this.stop.bind(this));
     process.on('SIGINT', this.stop.bind(this));
