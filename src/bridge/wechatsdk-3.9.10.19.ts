@@ -466,7 +466,7 @@ class PuppetBridge extends PUPPET.Puppet {
         'Content-Length': '0'
       };
 
-      await axios.post(confrmUrl, {}, { headers: isLink ? {} : headers });
+      await axios.get(confrmUrl, { headers: isLink ? {} : headers });
 
       log.info('roomInvitationAccept success');
     } catch (error) {
