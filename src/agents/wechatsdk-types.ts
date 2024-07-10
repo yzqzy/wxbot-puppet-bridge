@@ -239,3 +239,8 @@ export interface LocationParams {
   poiId: string;
   isFromPoiList: boolean;
 }
+
+export interface Tag {
+  labelId: number;
+  title: string;
+}

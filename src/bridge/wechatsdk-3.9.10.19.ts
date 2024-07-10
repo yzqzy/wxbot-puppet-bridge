@@ -39,7 +39,9 @@ interface PuppetRoom extends Room {
   announce: string;
   members: RoomMember[];
 }
-interface PuppetContact extends Contact {}
+interface PuppetContact extends Contact {
+  tags: string[];
+}
 
 class PuppetBridge extends PUPPET.Puppet {
   static override readonly VERSION = VERSION;
@@ -72,6 +74,10 @@ class PuppetBridge extends PUPPET.Puppet {
       apiUrl: options.apiUrl,
       protocol: options.protocol
     });
+  }
+
+  bridgeAgent(): Bridge {
+    return this.bridge;
   }
 
   override version(): string {
@@ -389,17 +395,13 @@ class PuppetBridge extends PUPPET.Puppet {
     log.info('roomQuit success');
   }
 
-  override async roomCreate(contactIdList: string[], topic?: string | undefined): Promise<string> {
-    log.verbose('PuppetBridge', 'roomCreate(%s, %s)', contactIdList, topic || '');
+  override async roomCreate(contactIds: string[], topic?: string | undefined): Promise<string> {
+    log.verbose('PuppetBridge', 'roomCreate(%s, %s)', contactIds, topic || '');
 
-    log.info('roomCreate: %s, %s', contactIdList, topic || '');
+    log.info('roomCreate: %s, %s', contactIds, topic || '');
 
-    const data = await this.bridge.createRoom(contactIdList);
-    if (!data) return '';
-
-    log.info('roomCreate success: %s', data.data.chatroomUserName);
-
-    const roomId = data.data.chatroomUserName;
+    const roomId = await this.createRoom(contactIds);
+    if (!roomId) return '';
 
     if (topic) {
       await this.roomTopic(roomId, topic);
@@ -410,6 +412,29 @@ class PuppetBridge extends PUPPET.Puppet {
     } as PuppetRoom);
 
     return roomId;
+  }
+
+  async createRoom(contactIds: string[]): Promise<string> {
+    log.verbose('PuppetBridge', 'createRoom(%s)', contactIds);
+
+    const data = await this.bridge.createRoom(contactIds);
+    if (!data) return '';
+
+    const roomId = data.data.chatroomUserName;
+
+    log.info('createRoom success: %s', data.data.chatroomUserName);
+
+    return roomId;
+  }
+
+  async deleteRoom(roomId: string): Promise<void> {
+    log.verbose('PuppetBridge', 'roomDelete(%s)', roomId);
+
+    log.info('roomDelete: %s', roomId);
+
+    await this.bridge.destoryRoom(roomId);
+
+    log.info('roomDelete success');
   }
 
   // Room Invitation --------------
@@ -472,6 +497,158 @@ class PuppetBridge extends PUPPET.Puppet {
     } catch (error) {
       log.error('roomInvitationAccept fail:', error);
     }
+  }
+
+  // Tag --------------
+
+  override async tagContactAdd(tagId: string, contactId: string): Promise<void>;
+  override async tagContactAdd(tagId: string, contactId: string): Promise<void> {
+    log.verbose('PuppetBridge', 'tagContactAdd(%s, %s)', tagId, contactId);
+
+    if (!tagId || !contactId) {
+      log.error('tagContactAdd: tagId or contactId not found');
+      return;
+    }
+
+    const contact = this.contactStore.get(contactId);
+    if (!contact) {
+      log.error('tagContactAdd: contact not found');
+      return;
+    }
+
+    const tags = contact.tags || [];
+
+    if (tags.includes(tagId)) {
+      log.info('contact already in tag');
+      return;
+    }
+
+    tags.push(tagId);
+    this.contactStore.set(contactId, { ...contact, tags });
+
+    await this.bridge.modifyTagMember(tags, contactId);
+
+    log.info('tagContactAdd success');
+  }
+
+  override async tagContactRemove(tagId: string, contactId: string): Promise<void>;
+  override async tagContactRemove(tagId: string, contactId: string): Promise<void> {
+    log.verbose('PuppetBridge', 'tagContactRemove(%s, %s)', tagId, contactId);
+
+    if (!tagId || !contactId) {
+      log.error('tagContactRemove: tagId or contactId not found');
+      return;
+    }
+
+    const contact = this.contactStore.get(contactId);
+    if (!contact) {
+      log.error('tagContactRemove: contact not found');
+      return;
+    }
+
+    const tags = contact.tags || [];
+
+    if (!tags.includes(tagId)) {
+      log.info('contact not in tag');
+      return;
+    }
+
+    tags.splice(tags.indexOf(tagId), 1);
+    this.contactStore.set(contactId, { ...contact, tags });
+
+    await this.bridge.modifyTagMember(tags, contactId);
+
+    log.info('tagContactRemove success');
+  }
+
+  override async tagContactList(contactId?: string): Promise<string[]>;
+  override async tagContactList(contactId?: string): Promise<string[]> {
+    log.verbose('PuppetBridge', 'tagContactList(%s)', contactId);
+
+    log.info('tagContactList: ', contactId);
+
+    if (contactId) {
+      return this.contactStore.get(contactId)?.tags || [];
+    }
+
+    const data = await this.bridge.tagList();
+    const labels = data.labels.map(tag => tag.labelId);
+
+    return labels.map(String);
+  }
+
+  override async tagContactDelete(tagId: string): Promise<void>;
+  override async tagContactDelete(tagId: string): Promise<void> {
+    log.verbose('PuppetBridge', 'tagContactDelete(%s)', tagId);
+
+    await this.deleteTag(tagId);
+  }
+
+  async createTag(name: string): Promise<string> {
+    const data = await this.bridge.addTag(name);
+
+    if (!data) return '';
+
+    log.info('createTag success: ', jsonStringify(data.data));
+
+    return String(data.data.labelId);
+  }
+
+  async deleteTag(tagId: string): Promise<void>;
+  async deleteTag(tagId: string): Promise<void> {
+    log.verbose('PuppetBridge', 'tagDelete(%s)', tagId);
+
+    if (!tagId) {
+      log.error('tagDelete: tagId not found');
+      return;
+    }
+
+    await this.bridge.removeTag(tagId);
+
+    this.mapValues(this.contactStore).forEach(contact => {
+      if (contact.tags && contact.tags.includes(tagId)) {
+        contact.tags.splice(contact.tags.indexOf(tagId), 1);
+        this.contactStore.set(contact.id, contact);
+      }
+    });
+
+    log.info('tagDelete success');
+  }
+
+  async getTagMemberList(tagId: string): Promise<string[]>;
+  async getTagMemberList(tagId: string): Promise<string[]> {
+    log.verbose('PuppetBridge', 'tagMemberList(%s)', tagId);
+
+    return this.getTagContacts(tagId);
+  }
+
+  private getTagContacts(labelId: string) {
+    const contactIds: string[] = [];
+
+    this.mapValues(this.contactStore).forEach(contact => {
+      if (contact.tags && contact.tags.includes(labelId)) {
+        contactIds.push(contact.id);
+      }
+    });
+
+    return contactIds;
+  }
+
+  async getTags(): Promise<{ id: string; name: string; ids: string[] }[]>;
+  async getTags(): Promise<{ id: string; name: string; ids: string[] }[]> {
+    log.verbose('PuppetBridge', 'tags()');
+
+    const data = await this.bridge.tagList();
+    const labels = data.labels;
+
+    return labels.map(label => {
+      const labelId = String(label.labelId);
+      return {
+        id: labelId,
+        name: label.title,
+        ids: this.getTagContacts(labelId)
+      };
+    });
   }
 
   // Message --------------
@@ -923,9 +1100,14 @@ class PuppetBridge extends PUPPET.Puppet {
       contact.address = contactInfo.province + contactInfo.city;
       contact.alias = contactInfo.alias;
       contact.signature = contactInfo.signature;
+      contact.tags = contactInfo?.labelIds.map(id => String(id)) || [];
 
       this.contactStore.set(contact.id, contact);
     } catch (error) {}
+  }
+
+  private mapValues(map: Map<any, any>) {
+    return [...map.values()];
   }
 
   private async loadContacts(): Promise<void> {
@@ -954,9 +1136,17 @@ class PuppetBridge extends PUPPET.Puppet {
         } as PuppetContact;
 
         this.contactStore.set(contact.UserName, contactPayload);
+      }
 
-        // async update contact payload
-        this.updateContactPayload(contactPayload, true);
+      const updateContactPromises = this.mapValues(this.contactStore).map(contact => {
+        return this.updateContactPayload(contact, true);
+      });
+      let size = updateContactPromises.length;
+
+      // update contact payload in batch
+      while (size > 0) {
+        await Promise.all(updateContactPromises.splice(0, 15));
+        size = updateContactPromises.length;
       }
 
       log.info('PuppetBridge', 'loadContacts() contacts count %s', this.contactStore.size);
@@ -1124,7 +1314,7 @@ class PuppetBridge extends PUPPET.Puppet {
     const members = room.members || [];
     return members.find(member => member.name === name);
   };
-  private getMemberByUserName = async (userName: string, room: PuppetRoom) => {
+  private findMemberByUserName = async (userName: string, room: PuppetRoom) => {
     const name = userName.split(/“|”|"/)[1] || '';
 
     if (!this.findMemberByName(name, room)) {
@@ -1140,13 +1330,13 @@ class PuppetBridge extends PUPPET.Puppet {
 
     if (contactNames[0] == '你') {
       contact = this.userInfo;
-      const member = await this.getMemberByUserName(contactNames[1], room);
+      const member = await this.findMemberByUserName(contactNames[1], room);
       if (member) {
         contactIds.push(member.id);
       }
     } else if (contactNames[1] === '你') {
       contactIds.push(this.userInfo.id);
-      const member = await this.getMemberByUserName(contactNames[0], room);
+      const member = await this.findMemberByUserName(contactNames[0], room);
       if (member) {
         contact = {
           id: member.id,
@@ -1155,7 +1345,7 @@ class PuppetBridge extends PUPPET.Puppet {
         } as PUPPET.payloads.Contact;
       }
     } else {
-      const opsMember = await this.getMemberByUserName(contactNames[0], room);
+      const opsMember = await this.findMemberByUserName(contactNames[0], room);
       if (opsMember) {
         contact = {
           id: opsMember.id,
@@ -1163,7 +1353,7 @@ class PuppetBridge extends PUPPET.Puppet {
           avatar: opsMember.avatar
         } as PUPPET.payloads.Contact;
       }
-      const member = await this.getMemberByUserName(contactNames[1], room);
+      const member = await this.findMemberByUserName(contactNames[1], room);
       if (member) {
         contactIds.push(member.id);
       }
@@ -1208,7 +1398,7 @@ class PuppetBridge extends PUPPET.Puppet {
         if (contactNames[0] == '你') {
           changer = this.userInfo;
         } else {
-          const member = await this.getMemberByUserName(contactNames[0], room);
+          const member = await this.findMemberByUserName(contactNames[0], room);
           if (member) {
             changer = {
               id: member.id,

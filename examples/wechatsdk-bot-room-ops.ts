@@ -18,7 +18,12 @@ async function main() {
   bot.on('ready', () => {
     log.info('Bot is ready');
 
+    // nromal room ops
     roomOps(bot);
+
+    // hack
+    // puppet.createRoom(['wxid_xxxx', 'wxid_xxxx', 'wxid_xxxx']);
+    // puppet.deleteRoom('44551008263@chatroom');
   });
 
   bot.on('room-invite', async roomInvitation => {

@@ -353,6 +353,56 @@ class Bridge extends EventEmitter {
     return res.data;
   }
 
+  async tagList() {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.tagsList();
+
+    if (res.error_code !== 10000) throw new Error('get tag list failed');
+
+    return res.data.data;
+  }
+
+  async addTag(title: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.addTag(title);
+
+    if (res.error_code !== 10000) throw new Error('add tag failed');
+
+    return res.data;
+  }
+
+  async modifyTag(tagId: string, title: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.modifyTag(Number(tagId), title);
+
+    if (res.error_code !== 10000) throw new Error('modify tag failed');
+
+    return res.data;
+  }
+
+  async removeTag(tagId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.removeTag(Number(tagId));
+
+    if (res.error_code !== 10000) throw new Error('remove tag failed');
+
+    return res.data;
+  }
+
+  async modifyTagMember(tagIds: string[], contactId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.modifyTagMember(contactId, tagIds.map(Number));
+
+    if (res.error_code !== 10000) throw new Error('modify tag member failed');
+
+    return res.data;
+  }
+
   private catchErrors() {
     process.on('uncaughtException', this.stop.bind(this));
     process.on('SIGINT', this.stop.bind(this));
