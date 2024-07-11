@@ -73,7 +73,7 @@ main()
 
 ### 2. hack
 
-非  `wechaty puppet`  功能会以  `puppet.[method]`  的方式提供，例如：
+非  `wechaty puppet`  功能会以  `puppet[method]`  的方式提供，例如：
 
 ```typescript
 async function main() {
