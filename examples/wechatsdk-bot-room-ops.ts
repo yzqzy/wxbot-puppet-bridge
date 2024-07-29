@@ -15,11 +15,15 @@ async function main() {
     log.info('Bot use login: ', jsonStringify(user));
   });
 
-  bot.on('ready', () => {
+  bot.on('ready', async () => {
     log.info('Bot is ready');
 
+    // room
+    const rooms = await bot.Room.findAll();
+    log.info('Bot rooms: ', rooms.length);
+
     // nromal room ops
-    roomOps(bot);
+    // roomOps(bot);
 
     // hack
     // puppet.createRoom(['wxid_xxxx', 'wxid_xxxx', 'wxid_xxxx']);

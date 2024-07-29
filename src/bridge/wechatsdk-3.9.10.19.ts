@@ -209,6 +209,8 @@ class PuppetBridge extends PUPPET.Puppet {
       } else if (query.topic) {
         rooms = roomList.filter(room => room.topic === query.topic).map(room => room.id);
       }
+    } else {
+      rooms = roomList.map(room => room.id);
     }
 
     return this.promiseWrap(() => rooms);
@@ -280,6 +282,8 @@ class PuppetBridge extends PUPPET.Puppet {
       }
     } else if (typeof query === 'string') {
       members = memberList.filter(member => member.name === query).map(member => member.id);
+    } else {
+      members = memberList.map(member => member.id);
     }
 
     return this.promiseWrap(() => members);
