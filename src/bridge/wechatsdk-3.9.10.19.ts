@@ -25,7 +25,7 @@ import Bridge from '@src/agents/wechatsdk-agent';
 import { delaySync, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
-import { createDirIfNotExist, getRootPath, imageDecrypt, removeFile, xmlDecrypt } from '@src/shared';
+import { createDirIfNotExist, getRootPath, imageDecrypt, removeFile, xmlParse, xmlDecrypt } from '@src/shared';
 
 const VERSION = '3.9.10.19';
 
@@ -776,7 +776,7 @@ class PuppetBridge extends PUPPET.Puppet {
 
     if (message?.type === PUPPET.types.Message.Attachment) {
       try {
-        const messageJson = await xmlDecrypt(message.text || '', message.type);
+        const messageJson = await xmlParse(message.text || '');
 
         const curDate = new Date();
         const year = curDate.getFullYear();
@@ -1480,6 +1480,60 @@ class PuppetBridge extends PUPPET.Puppet {
     } as EventRoomInvite);
   };
 
+  private async normalizedMsgType(message: RecvMsg) {
+    log.verbose('PuppetBridge', 'msgTypeParser()');
+
+    const content = message.content;
+    let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
+
+    let type = PUPPET.types.Message.Unknown;
+
+    try {
+      const json = await xmlParse(content, { explicitArray: false, ignoreAttrs: true });
+      log.info('PuppetBridge', 'json content:%s', JSON.stringify(json));
+
+      subType = json.msg.appmsg.type || subType;
+
+      switch (subType) {
+        case '5': // card link
+          type = PUPPET.types.Message.Url;
+          break;
+        case '4':
+          type = PUPPET.types.Message.Url;
+          break;
+        case '1':
+          type = PUPPET.types.Message.Url;
+          break;
+        case '6': // file
+          type = PUPPET.types.Message.Attachment;
+          break;
+        case '19':
+          type = PUPPET.types.Message.ChatHistory;
+          break;
+        case '33':
+          type = PUPPET.types.Message.MiniProgram;
+          break;
+        case '87':
+          type = PUPPET.types.Message.GroupNote;
+          break;
+        case '2000':
+          type = PUPPET.types.Message.Transfer;
+          break;
+        case '2001':
+          type = PUPPET.types.Message.RedEnvelope;
+          break;
+        case '10002':
+          type = PUPPET.types.Message.Recalled;
+          break;
+        default:
+      }
+    } catch (err) {
+      log.error('xml2js.parseString fail:', err);
+    }
+
+    return type;
+  }
+
   private async normalizedMsg(message: RecvMsg) {
     let type = PUPPET.types.Message.Unknown;
     let content = message.content;
@@ -1493,7 +1547,9 @@ class PuppetBridge extends PUPPET.Puppet {
         break;
       case 3:
         type = PUPPET.types.Message.Image;
-        await new Promise(resolve => {});
+        await new Promise(resolve => {
+          // TODO: download image
+        });
       case 4:
         type = PUPPET.types.Message.Video;
         break;
@@ -1537,58 +1593,7 @@ class PuppetBridge extends PUPPET.Puppet {
         type = PUPPET.types.Message.Location;
         break;
       case 49:
-        try {
-          await new Promise(resolve => {
-            xml2js.parseString(
-              content,
-              { explicitArray: false, ignoreAttrs: true },
-              function (err: any, json: { msg: { appmsg: { type: string; title: string } } }) {
-                log.error('PuppetBridge', 'xml2json err:%s', err);
-                log.info('PuppetBridge', 'json content:%s', JSON.stringify(json));
-
-                subType = json.msg.appmsg.type || subType;
-
-                switch (subType) {
-                  case '5': // card link
-                    type = PUPPET.types.Message.Url;
-                    break;
-                  case '4':
-                    type = PUPPET.types.Message.Url;
-                    break;
-                  case '1':
-                    type = PUPPET.types.Message.Url;
-                    break;
-                  case '6': // file
-                    type = PUPPET.types.Message.Attachment;
-                    break;
-                  case '19':
-                    type = PUPPET.types.Message.ChatHistory;
-                    break;
-                  case '33':
-                    type = PUPPET.types.Message.MiniProgram;
-                    break;
-                  case '87':
-                    type = PUPPET.types.Message.GroupNote;
-                    break;
-                  case '2000':
-                    type = PUPPET.types.Message.Transfer;
-                    break;
-                  case '2001':
-                    type = PUPPET.types.Message.RedEnvelope;
-                    break;
-                  case '10002':
-                    type = PUPPET.types.Message.Recalled;
-                    break;
-                  default:
-                }
-
-                resolve(null);
-              }
-            );
-          });
-        } catch (err) {
-          log.error('xml2js.parseString fail:', err);
-        }
+        type = await this.normalizedMsgType(message);
         break;
       case 50:
         break;

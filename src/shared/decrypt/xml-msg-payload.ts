@@ -2,12 +2,23 @@ import xml2js from 'xml2js';
 import * as PUPPET from 'wechaty-puppet';
 import { log } from 'wechaty-puppet';
 
+async function xmlParse(xml: string, options?: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    xml2js.parseString(xml, options, (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+}
+
 async function xmlDecrypt(xml: string, msgType: PUPPET.types.Message): Promise<any> {
   let res;
   log.verbose('PuppetBridge', 'text xml:(%s)', xml);
 
-  const parser = new xml2js.Parser();
-  const messageJson = await parser.parseStringPromise(xml || '');
+  const messageJson = await xmlParse(xml);
 
   switch (msgType) {
     case PUPPET.types.Message.Attachment:
@@ -35,7 +46,6 @@ async function xmlDecrypt(xml: string, msgType: PUPPET.types.Message): Promise<a
         longitude: location.y, // 116.334154
         name: location.poiname // "东升乡人民政府(海淀区成府路45号)"
       };
-
       res = LocationPayload;
       break;
     }
@@ -87,4 +97,4 @@ async function xmlDecrypt(xml: string, msgType: PUPPET.types.Message): Promise<a
   return res;
 }
 
-export { xmlDecrypt };
+export { xmlParse, xmlDecrypt };
