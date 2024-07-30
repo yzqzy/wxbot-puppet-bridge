@@ -76,8 +76,16 @@ class PuppetBridge extends PUPPET.Puppet {
     });
   }
 
-  bridgeAgent(): Bridge {
+  get bridgeAgent(): Bridge {
     return this.bridge;
+  }
+
+  get userPath() {
+    return path.join(this.rootPath, this.userInfo.id);
+  }
+
+  get userFilePath() {
+    return path.join(this.userPath, 'FileStorage\\File');
   }
 
   override version(): string {
@@ -703,7 +711,12 @@ class PuppetBridge extends PUPPET.Puppet {
       if (message?.text) {
         const picData = JSON.parse(message.text);
         const filePath = picData[imageType];
+
+        console.log('图片数据：', picData, imageType);
+
         const dataPath = this.rootPath + filePath;
+
+        console.log('图片路径：', dataPath);
 
         let fileExist = fs.existsSync(dataPath);
         let count = 0;
@@ -763,19 +776,18 @@ class PuppetBridge extends PUPPET.Puppet {
 
     if (message?.type === PUPPET.types.Message.Attachment) {
       try {
-        const parser = new xml2js.Parser();
-        const messageJson = await parser.parseStringPromise(message.text || '');
-        log.info('解析xml结果', JSON.stringify(messageJson));
+        const messageJson = await xmlDecrypt(message.text || '', message.type);
 
         const curDate = new Date();
         const year = curDate.getFullYear();
         let month: any = curDate.getMonth() + 1;
+
         if (month < 10) {
           month = '0' + month;
         }
 
         fileName = '\\' + messageJson.msg.appmsg[0].title[0];
-        const filePath = `${this.userInfo.id}\\FileStorage\\File\\${year}-${month}`;
+        const filePath = `${this.userFilePath}\\${year}-${month}`;
 
         dataPath = this.rootPath + filePath + fileName; // 要解密的文件路径
         log.info('保存文件路径：', dataPath);
@@ -1481,8 +1493,7 @@ class PuppetBridge extends PUPPET.Puppet {
         break;
       case 3:
         type = PUPPET.types.Message.Image;
-        content = JSON.stringify(['content.thumb', 'content.thumb', 'content.detail', 'content.thumb']);
-        break;
+        await new Promise(resolve => {});
       case 4:
         type = PUPPET.types.Message.Video;
         break;

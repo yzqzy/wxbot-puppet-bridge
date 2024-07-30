@@ -2,10 +2,7 @@ import xml2js from 'xml2js';
 import * as PUPPET from 'wechaty-puppet';
 import { log } from 'wechaty-puppet';
 
-async function xmlDecrypt(
-  xml: string,
-  msgType: PUPPET.types.Message
-): Promise<any> {
+async function xmlDecrypt(xml: string, msgType: PUPPET.types.Message): Promise<any> {
   let res;
   log.verbose('PuppetBridge', 'text xml:(%s)', xml);
 
@@ -89,4 +86,5 @@ async function xmlDecrypt(
 
   return res;
 }
+
 export { xmlDecrypt };
