@@ -1,7 +1,5 @@
 import { WechatyBuilder, ScanStatus, Message, log, types } from 'wechaty';
-import qrTerm from 'qrcode-terminal';
 import { FileBox } from 'file-box';
-import path from 'path';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
 
@@ -52,19 +50,23 @@ async function onMessage(msg: Message) {
 async function sendMsgHandler(msg: Message) {
   log.info('Bot Msg Type: ', msg.type());
 
-  let file;
-
   switch (msg.type()) {
     case types.Message.Image:
-      console.log('trigger image');
-      // file = await msg.toImage().thumbnail();
+      console.log('image', msg.text());
+
+      const messageImage = msg.toImage();
+
+      const thumbImage = await messageImage.thumbnail();
+      const thumbImageData = await thumbImage.toBuffer();
+
+      console.log(messageImage);
       // console.log(file);
       break;
     case types.Message.Attachment:
     case types.Message.Video:
     case types.Message.Audio:
     case types.Message.Emoticon:
-      file = await msg.toFileBox();
+      const file = await msg.toFileBox();
       console.log(file);
       break;
     default:

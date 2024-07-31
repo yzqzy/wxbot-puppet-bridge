@@ -3,7 +3,6 @@ import path from 'path';
 import fsPromise from 'fs/promises';
 
 import axios from 'axios';
-import xml2js from 'xml2js';
 import readXml from 'xmlreader';
 import { FileBoxInterface, FileBox, FileBoxType } from 'file-box';
 
@@ -25,7 +24,7 @@ import Bridge from '@src/agents/wechatsdk-agent';
 import { delaySync, getDates, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
-import { createDirIfNotExist, getRootPath, imageDecrypt, removeFile, xmlParse, xmlDecrypt } from '@src/shared';
+import { createDirIfNotExist, getRootPath, imageDecrypt, removeFile, xmlToJson, xmlDecrypt } from '@src/shared';
 
 const VERSION = '3.9.10.19';
 
@@ -703,6 +702,11 @@ class PuppetBridge extends PUPPET.Puppet {
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
+    console.log('messageImage', message);
+    console.log('messageImage', message.text);
+
+    throw new Error('not support message image');
+
     let base64 = '';
     let fileName = '';
     let imagePath = '';
@@ -751,6 +755,7 @@ class PuppetBridge extends PUPPET.Puppet {
     } catch (err) {
       log.error('messageImage fail:', err);
     }
+
     return FileBox.fromBase64(base64, fileName);
   }
 
@@ -777,7 +782,7 @@ class PuppetBridge extends PUPPET.Puppet {
 
     if (message?.type === PUPPET.types.Message.Attachment) {
       try {
-        const messageJson = await xmlParse(message.text || '');
+        const messageJson = await xmlToJson(message.text || '');
 
         fileName = '\\' + messageJson.msg.appmsg[0].title[0];
         dataPath = this.rootPath + this.userFilePath + fileName; // 要解密的文件路径
@@ -1482,7 +1487,7 @@ class PuppetBridge extends PUPPET.Puppet {
     let type = PUPPET.types.Message.Unknown;
 
     try {
-      const json = await xmlParse(content, { explicitArray: false, ignoreAttrs: true });
+      const json = await xmlToJson(content, { explicitArray: false, ignoreAttrs: true });
       log.info('PuppetBridge', 'json content:%s', JSON.stringify(json));
 
       subType = json.msg.appmsg.type || subType;
@@ -1527,21 +1532,13 @@ class PuppetBridge extends PUPPET.Puppet {
     return { type, subType };
   }
 
-  private async normalizedImageMsg(message: RecvMsg) {
+  private normalizedImageMsg(message: RecvMsg) {
     log.verbose('PuppetBridge', 'normalizedImageMsg()');
 
     const splitContent = message.content.split(':\n');
     const content = splitContent.length > 1 ? splitContent[1] : message.content;
 
-    console.log(this.userFilePath);
-
-    try {
-      const json = await xmlParse(content);
-
-      console.log('json content:', JSON.stringify(json));
-    } catch (error) {
-      log.error('xml2js.parseString fail:', error);
-    }
+    return content;
   }
 
   private async normalizedMsg(message: RecvMsg) {
@@ -1556,7 +1553,7 @@ class PuppetBridge extends PUPPET.Puppet {
         break;
       case 3:
         type = PUPPET.types.Message.Image;
-        await this.normalizedImageMsg(message);
+        content = this.normalizedImageMsg(message);
         break;
       case 4:
         type = PUPPET.types.Message.Video;

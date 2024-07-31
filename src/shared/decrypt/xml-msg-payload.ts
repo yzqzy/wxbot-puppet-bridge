@@ -1,24 +1,18 @@
-import xml2js from 'xml2js';
+import xml2js, { type ParserOptions } from 'xml2js';
 import * as PUPPET from 'wechaty-puppet';
 import { log } from 'wechaty-puppet';
 
-async function xmlParse(xml: string, options?: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    xml2js.parseString(xml, options, (err, result) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
+async function xmlToJson(xml: string, options?: ParserOptions): Promise<any> {
+  const posIdx = xml.indexOf('<');
+  if (posIdx !== 0) xml = xml.slice(posIdx);
+  return xml2js.parseStringPromise(xml, options);
 }
 
 async function xmlDecrypt(xml: string, msgType: PUPPET.types.Message): Promise<any> {
   let res;
   log.verbose('PuppetBridge', 'text xml:(%s)', xml);
 
-  const messageJson = await xmlParse(xml);
+  const messageJson = await xmlToJson(xml);
 
   switch (msgType) {
     case PUPPET.types.Message.Attachment:
@@ -97,4 +91,4 @@ async function xmlDecrypt(xml: string, msgType: PUPPET.types.Message): Promise<a
   return res;
 }
 
-export { xmlParse, xmlDecrypt };
+export { xmlToJson, xmlDecrypt };
