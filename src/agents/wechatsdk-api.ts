@@ -13,7 +13,10 @@ import {
   NormalResult,
   ChatRoomDetail,
   ChatRoomMember,
-  Tag
+  Tag,
+  CdnUploadParams,
+  CdnResult,
+  CdnDownloadParams
 } from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
@@ -331,6 +334,14 @@ class WeChatSdkApi {
 
   sendLocation(location: LocationParams) {
     return this.request.post<MessageResult>('/api/', Object.assign({ type: 10022 }, location));
+  }
+
+  cdnUpload(params: CdnUploadParams) {
+    return this.request.post<DataResult<CdnResult>>('/api/', Object.assign({ type: 7 }, params));
+  }
+
+  cdnDownload(params: CdnDownloadParams) {
+    return this.request.post<NormalResult>('/api/', Object.assign({ type: 41 }, params));
   }
 
   hook(protocol: number, url: string) {

@@ -244,3 +244,41 @@ export interface Tag {
   labelId: number;
   title: string;
 }
+
+export interface CdnUploadParams {
+  filePath: string;
+  aeskey: string;
+  fileType: number;
+  bAsync?: boolean;
+  asyncUserData?: string;
+}
+
+export interface CdnDownloadParams {
+  fileid: string;
+  aeskey: string;
+  fileType: number;
+  savePath: string;
+  bAsync?: boolean;
+  asyncUserData?: string;
+  chatType?: number;
+}
+
+export interface CdnResult {
+  aeskey: string;
+  encryptfilemd5: string;
+  filecrc: string;
+  fileid: string;
+  filekey: string;
+  isgetcdn: string;
+  isoverload: string;
+  isretry: string;
+  rawfilekey: string;
+  rawfilemd5: string;
+  rawtotalsize: string;
+  recvlen: string;
+  retcode: string;
+  retrysec: string;
+  seq: string;
+  ver: string;
+  'x-ClientIp': string;
+}

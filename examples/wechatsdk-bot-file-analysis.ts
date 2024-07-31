@@ -56,8 +56,9 @@ async function sendMsgHandler(msg: Message) {
 
   switch (msg.type()) {
     case types.Message.Image:
-      file = await msg.toImage().thumbnail();
-      console.log(file);
+      console.log('trigger image');
+      // file = await msg.toImage().thumbnail();
+      // console.log(file);
       break;
     case types.Message.Attachment:
     case types.Message.Video:

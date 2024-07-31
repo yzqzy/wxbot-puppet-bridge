@@ -22,7 +22,7 @@ import type {
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 
 import Bridge from '@src/agents/wechatsdk-agent';
-import { delaySync, jsonStringify } from '@src/shared/tools';
+import { delaySync, getDates, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
 import { createDirIfNotExist, getRootPath, imageDecrypt, removeFile, xmlParse, xmlDecrypt } from '@src/shared';
@@ -85,7 +85,8 @@ class PuppetBridge extends PUPPET.Puppet {
   }
 
   get userFilePath() {
-    return path.join(this.userPath, 'FileStorage\\File');
+    const { year, month } = getDates();
+    return path.join(this.userPath, `FileStorage\\File\\${year}-${month}`);
   }
 
   override version(): string {
@@ -778,18 +779,8 @@ class PuppetBridge extends PUPPET.Puppet {
       try {
         const messageJson = await xmlParse(message.text || '');
 
-        const curDate = new Date();
-        const year = curDate.getFullYear();
-        let month: any = curDate.getMonth() + 1;
-
-        if (month < 10) {
-          month = '0' + month;
-        }
-
         fileName = '\\' + messageJson.msg.appmsg[0].title[0];
-        const filePath = `${this.userFilePath}\\${year}-${month}`;
-
-        dataPath = this.rootPath + filePath + fileName; // 要解密的文件路径
+        dataPath = this.rootPath + this.userFilePath + fileName; // 要解密的文件路径
         log.info('保存文件路径：', dataPath);
 
         return FileBox.fromFile(dataPath, fileName);
@@ -1480,12 +1471,14 @@ class PuppetBridge extends PUPPET.Puppet {
     } as EventRoomInvite);
   };
 
+  // Message Parser
+
   private async normalizedMsgType(message: RecvMsg) {
     log.verbose('PuppetBridge', 'msgTypeParser()');
 
     const content = message.content;
-    let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
 
+    let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
     let type = PUPPET.types.Message.Unknown;
 
     try {
@@ -1531,25 +1524,40 @@ class PuppetBridge extends PUPPET.Puppet {
       log.error('xml2js.parseString fail:', err);
     }
 
-    return type;
+    return { type, subType };
+  }
+
+  private async normalizedImageMsg(message: RecvMsg) {
+    log.verbose('PuppetBridge', 'normalizedImageMsg()');
+
+    const splitContent = message.content.split(':\n');
+    const content = splitContent.length > 1 ? splitContent[1] : message.content;
+
+    console.log(this.userFilePath);
+
+    try {
+      const json = await xmlParse(content);
+
+      console.log('json content:', JSON.stringify(json));
+    } catch (error) {
+      log.error('xml2js.parseString fail:', error);
+    }
   }
 
   private async normalizedMsg(message: RecvMsg) {
     let type = PUPPET.types.Message.Unknown;
     let content = message.content;
-
-    const code = message.type.valueOf();
     let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
 
+    const code = message.type.valueOf();
     switch (code) {
       case 1:
         type = PUPPET.types.Message.Text;
         break;
       case 3:
         type = PUPPET.types.Message.Image;
-        await new Promise(resolve => {
-          // TODO: download image
-        });
+        await this.normalizedImageMsg(message);
+        break;
       case 4:
         type = PUPPET.types.Message.Video;
         break;
@@ -1593,7 +1601,9 @@ class PuppetBridge extends PUPPET.Puppet {
         type = PUPPET.types.Message.Location;
         break;
       case 49:
-        type = await this.normalizedMsgType(message);
+        const data = await this.normalizedMsgType(message);
+        type = data.type;
+        subType = data.subType;
         break;
       case 50:
         break;
@@ -1630,6 +1640,8 @@ class PuppetBridge extends PUPPET.Puppet {
     const talkerId = message.talkerInfo?.userName;
 
     let roomId;
+
+    console.log('message', message);
 
     if (message.from.includes('@chatroom')) {
       roomId = message.from;

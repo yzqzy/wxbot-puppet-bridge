@@ -7,7 +7,7 @@ import { log } from 'wechaty-puppet';
 import EnvVars from '@src/config/EnvVars';
 import { decodeQRCode } from '@src/shared/qrcode';
 
-import type { LocationParams, RecvMsg, Result } from './wechatsdk-types';
+import type { CdnDownloadParams, CdnUploadParams, LocationParams, RecvMsg, Result } from './wechatsdk-types';
 import WeChatSdkApi from './wechatsdk-api';
 import { isJsonString } from '@src/shared';
 import { killPort } from '@src/shared/port';
@@ -399,6 +399,26 @@ class Bridge extends EventEmitter {
     const res = await this.wechatsdk.modifyTagMember(contactId, tagIds.map(Number));
 
     if (res.error_code !== 10000) throw new Error('modify tag member failed');
+
+    return res.data;
+  }
+
+  async cdnDownload(params: CdnDownloadParams) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.cdnDownload(params);
+
+    if (res.error_code !== 10000) throw new Error('cdn download failed');
+
+    return res.data;
+  }
+
+  async cdnUpload(params: CdnUploadParams) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.cdnUpload(params);
+
+    if (res.error_code !== 10000) throw new Error('cdn upload failed');
 
     return res.data;
   }
