@@ -1,4 +1,4 @@
-import { WechatyBuilder, ScanStatus, Message, log, types } from 'wechaty';
+import { WechatyBuilder, Message, log, types } from 'wechaty';
 import { FileBox } from 'file-box';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
@@ -44,10 +44,6 @@ async function onMessage(msg: Message) {
   const contact = msg.talker();
   log.info('Bot Msg Contact: ', jsonStringify(contact));
 
-  sendMsgHandler(msg);
-}
-
-async function sendMsgHandler(msg: Message) {
   log.info('Bot Msg Type: ', msg.type());
 
   switch (msg.type()) {
@@ -58,16 +54,23 @@ async function sendMsgHandler(msg: Message) {
 
       const thumbImage = await messageImage.thumbnail();
       const thumbImageData = await thumbImage.toBuffer();
+
       log.info(`thumb image size: ${thumbImageData.length}`);
-      log.info(`${thumbImage.name}`);
+      log.info(`thumn image name: ${thumbImage.name}`);
 
       break;
     case types.Message.Attachment:
     case types.Message.Video:
     case types.Message.Audio:
     case types.Message.Emoticon:
-      // const file = await msg.toFileBox();
-      // console.log(file);
+      const file = await msg.toFileBox();
+
+      log.info('file name: ', file.name);
+      log.info('file size: ', file.size);
+      log.info('file type: ', file.type);
+
+      const fileData = await file.toBuffer();
+      log.info(`file data size: ${fileData.length}`);
       break;
     default:
       console.log('not support');

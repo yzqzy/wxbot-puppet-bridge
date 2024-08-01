@@ -341,7 +341,7 @@ class WeChatSdkApi {
   }
 
   cdnDownload(params: CdnDownloadParams) {
-    return this.request.post<NormalResult>('/api/', Object.assign({ type: 41 }, params));
+    return this.request.post<NormalResult>('/api/', Object.assign({ type: 88 }, params));
   }
 
   hook(protocol: number, url: string) {
