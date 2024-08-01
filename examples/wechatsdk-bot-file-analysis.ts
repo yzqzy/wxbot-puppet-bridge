@@ -52,22 +52,22 @@ async function sendMsgHandler(msg: Message) {
 
   switch (msg.type()) {
     case types.Message.Image:
-      console.log('image', msg.text());
+      log.info('image', msg.text());
 
       const messageImage = msg.toImage();
 
       const thumbImage = await messageImage.thumbnail();
       const thumbImageData = await thumbImage.toBuffer();
+      log.info(`thumb image size: ${thumbImageData.length}`);
+      log.info(`${thumbImage.name}`);
 
-      console.log(messageImage);
-      // console.log(file);
       break;
     case types.Message.Attachment:
     case types.Message.Video:
     case types.Message.Audio:
     case types.Message.Emoticon:
-      const file = await msg.toFileBox();
-      console.log(file);
+      // const file = await msg.toFileBox();
+      // console.log(file);
       break;
     default:
       console.log('not support');

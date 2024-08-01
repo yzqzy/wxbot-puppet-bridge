@@ -20,3 +20,7 @@ export function writeFile(filePath: string, content: string): void {
 export function readFile(filePath: string): string {
   return fs.readFileSync(filePath, 'utf8');
 }
+
+export function readImageBase64(filePath: string) {
+  return fs.readFileSync(filePath, { encoding: 'base64' });
+}

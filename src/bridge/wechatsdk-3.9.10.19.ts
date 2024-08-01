@@ -1,9 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import fsPromise from 'fs/promises';
 
 import axios from 'axios';
-import readXml from 'xmlreader';
 import { FileBoxInterface, FileBox, FileBoxType } from 'file-box';
 
 import * as PUPPET from 'wechaty-puppet';
@@ -20,11 +18,12 @@ import type {
 } from 'wechaty-puppet/payloads';
 import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 
+import { REPOS_URL } from '@src/config/config';
 import Bridge from '@src/agents/wechatsdk-agent';
-import { delaySync, getDates, jsonStringify } from '@src/shared/tools';
+import { getDates, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
-import { createDirIfNotExist, getRootPath, imageDecrypt, removeFile, xmlToJson, xmlDecrypt } from '@src/shared';
+import { createDirIfNotExist, getRootPath, removeFile, xmlToJson, xmlDecrypt } from '@src/shared';
 
 const VERSION = '3.9.10.19';
 
@@ -42,6 +41,12 @@ interface PuppetContact extends Contact {
   tags: string[];
 }
 
+interface PuppetUser extends Contact {
+  cachePath: string;
+  dbKey: string;
+  exePath: string;
+}
+
 class PuppetBridge extends PUPPET.Puppet {
   static override readonly VERSION = VERSION;
 
@@ -49,7 +54,7 @@ class PuppetBridge extends PUPPET.Puppet {
 
   private bridge!: Bridge;
 
-  private userInfo!: Contact;
+  private userInfo!: PuppetUser;
 
   private rootPath: string = getRootPath();
 
@@ -80,12 +85,12 @@ class PuppetBridge extends PUPPET.Puppet {
   }
 
   get userPath() {
-    return path.join(this.rootPath, this.userInfo.id);
+    return this.userInfo.cachePath;
   }
 
   get userFilePath() {
     const { year, month } = getDates();
-    return path.join(this.userPath, `FileStorage\\File\\${year}-${month}`);
+    return this.userPath + `\\FileStorage\\File\\${year}-${month}\\`;
   }
 
   override version(): string {
@@ -183,7 +188,7 @@ class PuppetBridge extends PUPPET.Puppet {
     if (payload.avatar) {
       return FileBox.fromUrl(payload.avatar);
     }
-    return FileBox.fromQRCode('http://weixin.qq.com/r/qymXj7DEO_1ErfTs93y5');
+    return FileBox.fromUrl(REPOS_URL);
   }
 
   override roomRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Room> {
@@ -695,68 +700,54 @@ class PuppetBridge extends PUPPET.Puppet {
     return await xmlDecrypt(message.text || '', message.type || PUPPET.types.Message.Unknown);
   }
 
+  private normalizedImageType(imageType: PUPPET.types.Image) {
+    switch (imageType) {
+      case PUPPET.types.Image.Thumbnail:
+        return 3;
+      case PUPPET.types.Image.HD:
+        return 2;
+      case PUPPET.types.Image.Artwork:
+        return 1;
+      default:
+        return 1;
+    }
+  }
+
   override async messageImage(messageId: string, imageType: PUPPET.types.Image): Promise<FileBoxInterface>;
   override async messageImage(messageId: string, imageType: PUPPET.types.Image): Promise<FileBoxInterface> {
+    // TODO: 图片下载
+
     log.verbose('PuppetBridge', 'messageImage(%s, %s)', messageId, imageType);
 
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    console.log('messageImage', message);
-    console.log('messageImage', message.text);
-
-    throw new Error('not support message image');
-
-    let base64 = '';
-    let fileName = '';
-    let imagePath = '';
-    let file: FileBoxInterface;
-
     try {
-      if (message?.text) {
-        const picData = JSON.parse(message.text);
-        const filePath = picData[imageType];
+      const content = await xmlToJson(message.text || '', { mergeAttrs: true, explicitArray: false });
 
-        console.log('图片数据：', picData, imageType);
+      const aeskey = content['msg']['img']['askey'];
+      const cdnUrl = content['msg']['img']['cdnthumburl'];
 
-        const dataPath = this.rootPath + filePath;
+      const fileName = `message_${messageId}_url_${imageType}.png`;
+      const savePath = this.userFilePath + `message_${messageId}_url_${imageType}.png`;
 
-        console.log('图片路径：', dataPath);
+      createDirIfNotExist(this.userFilePath);
 
-        let fileExist = fs.existsSync(dataPath);
-        let count = 0;
-        while (!fileExist) {
-          await delaySync(500);
-          fileExist = fs.existsSync(dataPath);
-          if (count > 20) {
-            break;
-          }
-          count++;
-        }
-
-        await fsPromise.access(dataPath);
-
-        const imageInfo = imageDecrypt(dataPath, messageId);
-
-        log.verbose(dataPath, imageInfo.fileName, imageInfo.extension);
-
-        base64 = imageInfo.base64;
-        fileName = `message-${messageId}-url-${imageType}.${imageInfo.extension}`;
-        file = FileBox.fromBase64(base64, fileName);
-
-        const paths = dataPath.split('\\');
-        paths[paths.length - 1] = fileName;
-        imagePath = paths.join('\\');
-
-        log.verbose('图片解密后文件路径：', imagePath, true);
-
-        await file.toFile(imagePath);
+      if (!fs.existsSync(savePath)) {
+        await this.bridge.cdnDownload({
+          fileid: cdnUrl,
+          aeskey,
+          fileType: this.normalizedImageType(imageType),
+          savePath
+        });
       }
-    } catch (err) {
-      log.error('messageImage fail:', err);
+
+      return FileBox.fromFile(savePath, fileName);
+    } catch (error) {
+      console.log('messageImage', error);
     }
 
-    return FileBox.fromBase64(base64, fileName);
+    return FileBox.fromUrl(REPOS_URL);
   }
 
   override messageRecall(messageId: string): Promise<boolean>;
@@ -768,6 +759,8 @@ class PuppetBridge extends PUPPET.Puppet {
 
   override async messageFile(messageId: string): Promise<FileBoxInterface>;
   override async messageFile(messageId: string): Promise<FileBoxInterface> {
+    // TODO: 文件下载
+
     log.verbose('PuppetBridge', 'messageFile(%s)', messageId);
 
     const message = this.messageStore.get(messageId);
@@ -776,37 +769,40 @@ class PuppetBridge extends PUPPET.Puppet {
     let dataPath = '';
     let fileName = '';
 
-    if (message?.type === PUPPET.types.Message.Image) {
-      return this.messageImage(messageId, PUPPET.types.Image.Thumbnail);
-    }
+    console.log('messageFile', message.text);
+    console.log('messageFile', message.type);
 
-    if (message?.type === PUPPET.types.Message.Attachment) {
-      try {
-        const messageJson = await xmlToJson(message.text || '');
+    // if (message?.type === PUPPET.types.Message.Image) {
+    //   return this.messageImage(messageId, PUPPET.types.Image.Thumbnail);
+    // }
 
-        fileName = '\\' + messageJson.msg.appmsg[0].title[0];
-        dataPath = this.rootPath + this.userFilePath + fileName; // 要解密的文件路径
-        log.info('保存文件路径：', dataPath);
+    // if (message?.type === PUPPET.types.Message.Attachment) {
+    //   try {
+    //     const messageJson = await xmlToJson(message.text || '');
 
-        return FileBox.fromFile(dataPath, fileName);
-      } catch (err) {
-        log.error('保存图片messageFile fail:', err);
-      }
-    }
+    //     fileName = '\\' + messageJson.msg.appmsg[0].title[0];
+    //     dataPath = this.rootPath + this.userFilePath + fileName; // 要解密的文件路径
+    //     log.info('保存文件路径：', dataPath);
 
-    if (message?.type === PUPPET.types.Message.Emoticon && message.text) {
-      const text = JSON.parse(message.text);
-      try {
-        try {
-          fileName = text.md5 + '.png';
-          return FileBox.fromUrl(text.cdnurl, { name: fileName });
-        } catch (err) {
-          log.error('messageFile fail:', err);
-        }
-      } catch (err) {
-        log.error('messageFile fail:', err);
-      }
-    }
+    //     return FileBox.fromFile(dataPath, fileName);
+    //   } catch (err) {
+    //     log.error('保存图片messageFile fail:', err);
+    //   }
+    // }
+
+    // if (message?.type === PUPPET.types.Message.Emoticon && message.text) {
+    //   const text = JSON.parse(message.text);
+    //   try {
+    //     try {
+    //       fileName = text.md5 + '.png';
+    //       return FileBox.fromUrl(text.cdnurl, { name: fileName });
+    //     } catch (err) {
+    //       log.error('messageFile fail:', err);
+    //     }
+    //   } catch (err) {
+    //     log.error('messageFile fail:', err);
+    //   }
+    // }
 
     if (
       [PUPPET.types.Message.Video, PUPPET.types.Message.Audio].includes(message?.type || PUPPET.types.Message.Unknown)
@@ -928,10 +924,9 @@ class PuppetBridge extends PUPPET.Puppet {
   override async messageSendFile(conversationId: string, file: FileBoxInterface): Promise<string | void> {
     log.verbose('PuppetBridge', 'messageSendFile(%s, %s)', conversationId, file);
 
-    let filePath = path.resolve() + '\\downloads\\';
-    createDirIfNotExist(filePath);
+    createDirIfNotExist(this.userFilePath);
 
-    filePath = filePath + '\\' + file.name;
+    const filePath = this.userFilePath + file.name;
     if (!fs.existsSync(filePath)) {
       try {
         await file.toFile(filePath);
@@ -1260,8 +1255,11 @@ class PuppetBridge extends PUPPET.Puppet {
       province: user.province,
       signature: user.signature,
       phone: [user.phone],
-      avatar: user.smallHeadImgUrl || user.bigHeadImgUrl
-    } as Contact;
+      avatar: user.smallHeadImgUrl || user.bigHeadImgUrl,
+      cachePath: user.cachePath,
+      dbKey: user.dbKey,
+      exePath: user.exePath
+    } as PuppetUser;
 
     this.userInfo = userPayload;
 
@@ -1532,8 +1530,8 @@ class PuppetBridge extends PUPPET.Puppet {
     return { type, subType };
   }
 
-  private normalizedImageMsg(message: RecvMsg) {
-    log.verbose('PuppetBridge', 'normalizedImageMsg()');
+  private normalizedMsgContent(message: RecvMsg) {
+    log.verbose('PuppetBridge', 'normalizedMsgContent()');
 
     const splitContent = message.content.split(':\n');
     const content = splitContent.length > 1 ? splitContent[1] : message.content;
@@ -1553,7 +1551,7 @@ class PuppetBridge extends PUPPET.Puppet {
         break;
       case 3:
         type = PUPPET.types.Message.Image;
-        content = this.normalizedImageMsg(message);
+        content = this.normalizedMsgContent(message);
         break;
       case 4:
         type = PUPPET.types.Message.Video;
@@ -1563,6 +1561,7 @@ class PuppetBridge extends PUPPET.Puppet {
         break;
       case 34:
         type = PUPPET.types.Message.Audio;
+        content = this.normalizedMsgContent(message);
         break;
       case 37:
         type = PUPPET.types.Message.Contact;
@@ -1577,22 +1576,23 @@ class PuppetBridge extends PUPPET.Puppet {
         break;
       case 47:
         type = PUPPET.types.Message.Emoticon;
-        try {
-          await new Promise((resolve, reject) => {
-            readXml.read(content, function (errors: any, xmlResponse: any) {
-              if (errors !== null) {
-                log.error(errors);
-                resolve(null);
-                return;
-              }
-              const xml2json = xmlResponse.msg.emoji.attributes();
-              content = JSON.stringify(xml2json);
-              resolve(null);
-            });
-          });
-        } catch (err) {
-          log.error('xml2js.parseString fail:', err);
-        }
+        content = this.normalizedMsgContent(message);
+        // try {
+        //   await new Promise((resolve, reject) => {
+        //     readXml.read(content, function (errors: any, xmlResponse: any) {
+        //       if (errors !== null) {
+        //         log.error(errors);
+        //         resolve(null);
+        //         return;
+        //       }
+        //       const xml2json = xmlResponse.msg.emoji.attributes();
+        //       content = JSON.stringify(xml2json);
+        //       resolve(null);
+        //     });
+        //   });
+        // } catch (err) {
+        //   log.error('xml2js.parseString fail:', err);
+        // }
         break;
       case 48:
         type = PUPPET.types.Message.Location;
