@@ -1,5 +1,4 @@
 import { WechatyBuilder, Message, log, types } from 'wechaty';
-import { FileBox } from 'file-box';
 import { WeChatSdkPuppetBridge_3_9_10_19 as PuppetBridge } from '@src/mod';
 import { jsonStringify } from '@src/shared/tools';
 
@@ -87,17 +86,12 @@ async function onMessage(msg: Message) {
 
     case types.Message.MiniProgram:
       const miniProgram = await msg.toMiniProgram();
-
-      log.info('min progream', JSON.stringify(miniProgram));
+      log.info('min program', JSON.stringify(miniProgram));
       break;
 
     case types.Message.Url:
       const urlLink = await msg.toUrlLink();
       log.info('url', JSON.stringify(urlLink));
-
-      const urlData = await msg.toFileBox();
-      const urlDataBuffer = await urlData.toBuffer();
-      log.info(`url data size: ${urlDataBuffer.length}`);
       break;
 
     default:

@@ -71,6 +71,8 @@ export const normalizedMsg = async (message: RecvMsg) => {
   let content = message.content;
   let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
 
+  content = normalizedMsgContent(message);
+
   const code = message.type.valueOf();
   switch (code) {
     case 1:
@@ -78,18 +80,15 @@ export const normalizedMsg = async (message: RecvMsg) => {
       break;
     case 3:
       type = PUPPET.types.Message.Image;
-      content = normalizedMsgContent(message);
       break;
     case 4:
       type = PUPPET.types.Message.Video;
-      content = normalizedMsgContent(message);
       break;
     case 5:
       type = PUPPET.types.Message.Url;
       break;
     case 34:
       type = PUPPET.types.Message.Audio;
-      content = normalizedMsgContent(message);
       break;
     case 37:
       type = PUPPET.types.Message.Contact;
@@ -101,11 +100,9 @@ export const normalizedMsg = async (message: RecvMsg) => {
       break;
     case 43:
       type = PUPPET.types.Message.Video;
-      content = normalizedMsgContent(message);
       break;
     case 47:
       type = PUPPET.types.Message.Emoticon;
-      content = normalizedMsgContent(message);
       break;
     case 48:
       type = PUPPET.types.Message.Location;

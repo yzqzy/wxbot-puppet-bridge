@@ -733,12 +733,12 @@ class PuppetBridge extends PUPPET.Puppet {
     try {
       const content = await xmlToJson(message.text || '', { mergeAttrs: true, explicitArray: false });
 
-      const { fileType, sufffix, attr } = this.getImageFileConfig(imageType);
+      const { fileType, suffix, attr } = this.getImageFileConfig(imageType);
 
       const aeskey = content['msg']['img']['aeskey'];
       const cdnUrl = content['msg']['img'][attr] || content['msg']['img']['cdnmidimgurl'];
 
-      const fileName = `message_${aeskey}_${sufffix}.png`;
+      const fileName = `message_${aeskey}_${suffix}.png`;
 
       const savePath = this.userFilePath + fileName;
 
@@ -807,7 +807,40 @@ class PuppetBridge extends PUPPET.Puppet {
 
       return FileBox.fromFile(savePath, fileName);
     } catch (error) {
-      console.log('messageFileBox', error);
+      console.log('getMessageFileBox', error);
+    }
+
+    return FileBox.fromUrl(REPOS_URL);
+  }
+
+  private async getMessageAttachment(message: PUPPET.payloads.Message): Promise<FileBoxInterface> {
+    log.verbose('PuppetBridge', 'getMessageAttachment(%s)', message.id);
+
+    try {
+      const content = await xmlToJson(message.text || '', { ignoreAttrs: true, explicitArray: false });
+
+      const title = content['msg']['appmsg']['title'];
+      const totallen = content['msg']['appmsg']['appattach']['totallen'];
+      const aeskey = content['msg']['appmsg']['appattach']['aeskey'];
+      const cdnUrl = content['msg']['appmsg']['appattach']['cdnattachurl'];
+
+      const fileName = `message_${aeskey}_${title}`;
+      const savePath = this.userFilePath + fileName;
+
+      createDirIfNotExist(this.userFilePath);
+
+      if (!fs.existsSync(savePath)) {
+        await this.bridge.cdnDownload({
+          fileid: cdnUrl,
+          aeskey,
+          fileType: totallen > 26214400 ? 7 : 5,
+          savePath
+        });
+      }
+
+      return FileBox.fromFile(savePath, fileName);
+    } catch (error) {
+      console.log('getMessageAttachment', error);
     }
 
     return FileBox.fromUrl(REPOS_URL);
@@ -846,9 +879,6 @@ class PuppetBridge extends PUPPET.Puppet {
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    log.info(`messageFile type: ${message.type}`);
-    log.info(`messageFile text: ${message.text}`);
-
     if (message?.type === PUPPET.types.Message.Image) {
       return this.messageImage(messageId, PUPPET.types.Image.HD);
     }
@@ -862,21 +892,7 @@ class PuppetBridge extends PUPPET.Puppet {
     }
 
     if (message.type === PUPPET.types.Message.Attachment) {
-      // TODO: send attachment
-      log.info('messageFile', 'attachment');
-      return FileBox.fromUrl(REPOS_URL);
-    }
-
-    if (message.type === PUPPET.types.Message.MiniProgram) {
-      // TODO: send mini program
-      log.info('messageFile', 'mini program');
-      return FileBox.fromUrl(REPOS_URL);
-    }
-
-    if (message.type === PUPPET.types.Message.Url) {
-      // TODO: send url
-      log.info('messageFile', 'url');
-      return FileBox.fromUrl(REPOS_URL);
+      return this.getMessageAttachment(message);
     }
 
     log.info(`messageFile unknown type: ${message.type}`);
