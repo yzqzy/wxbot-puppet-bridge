@@ -41,9 +41,6 @@ main()
 async function onMessage(msg: Message) {
   log.info('Bot Msg: ', jsonStringify(msg));
 
-  const contact = msg.talker();
-  log.info('Bot Msg Contact: ', jsonStringify(contact));
-
   log.info('Bot Msg Type: ', msg.type());
 
   switch (msg.type()) {
@@ -59,10 +56,25 @@ async function onMessage(msg: Message) {
       log.info(`thumn image name: ${thumbImage.name}`);
 
       break;
+
+    case types.Message.Emoticon:
+      const emotionFile = await msg.toFileBox();
+
+      log.info('emotion file name: ', emotionFile.name);
+      log.info('emotion file size: ', emotionFile.size);
+      log.info('emotion file type: ', emotionFile.type);
+
+      const emotionJSON = emotionFile.toJSON();
+      log.info('emotion file json: ', jsonStringify(emotionJSON));
+
+      const emotionData = await emotionFile.toBuffer();
+      log.info(`emotion data size: ${emotionData.length}`);
+
+      break;
+
     case types.Message.Attachment:
     case types.Message.Video:
     case types.Message.Audio:
-    case types.Message.Emoticon:
       const file = await msg.toFileBox();
 
       log.info('file name: ', file.name);
@@ -72,6 +84,22 @@ async function onMessage(msg: Message) {
       const fileData = await file.toBuffer();
       log.info(`file data size: ${fileData.length}`);
       break;
+
+    case types.Message.MiniProgram:
+      const miniProgram = await msg.toMiniProgram();
+
+      log.info('min progream', JSON.stringify(miniProgram));
+      break;
+
+    case types.Message.Url:
+      const urlLink = await msg.toUrlLink();
+      log.info('url', JSON.stringify(urlLink));
+
+      const urlData = await msg.toFileBox();
+      const urlDataBuffer = await urlData.toBuffer();
+      log.info(`url data size: ${urlDataBuffer.length}`);
+      break;
+
     default:
       console.log('not support');
       break;

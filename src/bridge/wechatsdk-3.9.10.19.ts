@@ -24,6 +24,7 @@ import { getDates, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
 import { createDirIfNotExist, getRootPath, removeFile, xmlToJson, xmlDecrypt } from '@src/shared';
+import { normalizedMsg } from './transforms/message-parser';
 
 const VERSION = '3.9.10.19';
 
@@ -700,14 +701,26 @@ class PuppetBridge extends PUPPET.Puppet {
     return await xmlDecrypt(message.text || '', message.type || PUPPET.types.Message.Unknown);
   }
 
-  private getImageFileType(imageType: PUPPET.types.Image) {
+  private getImageFileConfig(imageType: PUPPET.types.Image) {
     if (imageType === PUPPET.types.Image.Thumbnail) {
-      return 3;
+      return {
+        fileType: 3,
+        attr: 'cdnthumburl',
+        suffix: 'thumb'
+      };
     }
     if (imageType === PUPPET.types.Image.HD) {
-      return 2;
+      return {
+        fileType: 1,
+        attr: 'cdnbigimgurl',
+        suffix: 'hd'
+      };
     }
-    return 1;
+    return {
+      fileType: 2,
+      attr: 'cdnmidimgurl',
+      sufffix: 'normal'
+    };
   }
 
   override async messageImage(messageId: string, imageType: PUPPET.types.Image): Promise<FileBoxInterface>;
@@ -720,10 +733,13 @@ class PuppetBridge extends PUPPET.Puppet {
     try {
       const content = await xmlToJson(message.text || '', { mergeAttrs: true, explicitArray: false });
 
-      const aeskey = content['msg']['img']['aeskey'];
-      const cdnUrl = content['msg']['img']['cdnthumburl'];
+      const { fileType, sufffix, attr } = this.getImageFileConfig(imageType);
 
-      const fileName = `message_${aeskey}_${imageType}.png`;
+      const aeskey = content['msg']['img']['aeskey'];
+      const cdnUrl = content['msg']['img'][attr] || content['msg']['img']['cdnmidimgurl'];
+
+      const fileName = `message_${aeskey}_${sufffix}.png`;
+
       const savePath = this.userFilePath + fileName;
 
       createDirIfNotExist(this.userFilePath);
@@ -732,7 +748,7 @@ class PuppetBridge extends PUPPET.Puppet {
         await this.bridge.cdnDownload({
           fileid: cdnUrl,
           aeskey,
-          fileType: this.getImageFileType(imageType),
+          fileType,
           savePath
         });
       }
@@ -755,23 +771,27 @@ class PuppetBridge extends PUPPET.Puppet {
   private async getMessageFileBox(message: PUPPET.payloads.Message): Promise<FileBoxInterface> {
     log.verbose('PuppetBridge', 'messageFileBox(%s)', message.id);
 
-    const fileType = message.type;
-
-    const typeMapping = {
+    const CnfigMapping = {
       [PUPPET.types.Message.Video]: {
         attr: 'videomsg',
-        suffix: '.mp4'
+        suffix: '.mp4',
+        fileTye: 4
+      },
+      [PUPPET.types.Message.Audio]: {
+        attr: 'voicemsg',
+        suffix: '.slik',
+        fileTye: 15
       }
-    } as Record<PUPPET.types.Message, { attr: string; suffix: string }>;
-    const fileTypeInfo = typeMapping[fileType];
+    } as Record<PUPPET.types.Message, { attr: string; suffix: string; fileTye: number }>;
+    const config = CnfigMapping[message.type];
 
     try {
       const content = await xmlToJson(message.text || '', { mergeAttrs: true, explicitArray: false });
 
-      const aeskey = content['msg'][fileTypeInfo.attr]['aeskey'];
-      const cdnUrl = content['msg'][fileTypeInfo.attr]['cdnthumburl'];
+      const aeskey = content['msg'][config.attr]['aeskey'];
+      const cdnUrl = content['msg'][config.attr]['cdnvideourl'];
 
-      const fileName = `message_${aeskey}${fileTypeInfo.suffix}`;
+      const fileName = `message_${aeskey}${config.suffix}`;
       const savePath = this.userFilePath + fileName;
 
       createDirIfNotExist(this.userFilePath);
@@ -780,14 +800,40 @@ class PuppetBridge extends PUPPET.Puppet {
         await this.bridge.cdnDownload({
           fileid: cdnUrl,
           aeskey,
-          fileType,
+          fileType: config.fileTye,
           savePath
         });
       }
 
       return FileBox.fromFile(savePath, fileName);
     } catch (error) {
-      console.log('messageImage', error);
+      console.log('messageFileBox', error);
+    }
+
+    return FileBox.fromUrl(REPOS_URL);
+  }
+
+  private async getMessageEmoticon(message: PUPPET.payloads.Message): Promise<FileBoxInterface> {
+    log.verbose('PuppetBridge', 'messageEmoticon(%s)', message.id);
+
+    try {
+      const content = await xmlToJson(message.text || '', { mergeAttrs: true, explicitArray: false });
+
+      const aeskey = content['msg']['emoji']['aeskey'];
+      const cdnUrl = content['msg']['emoji']['cdnurl'];
+
+      const emoticonBox = FileBox.fromUrl(cdnUrl, {
+        name: `message_${aeskey}.png`
+      });
+
+      emoticonBox.metadata = {
+        payload: content,
+        type: 'emoticon'
+      };
+
+      return emoticonBox;
+    } catch (error) {
+      console.log('messageEmoticon', error);
     }
 
     return FileBox.fromUrl(REPOS_URL);
@@ -800,55 +846,42 @@ class PuppetBridge extends PUPPET.Puppet {
     const message = this.messageStore.get(messageId);
     if (!message) throw new Error('message not found');
 
-    let dataPath = '';
-    let fileName = '';
-
-    console.log('messageFile', message.text);
-    console.log('messageFile', message.type);
+    log.info(`messageFile type: ${message.type}`);
+    log.info(`messageFile text: ${message.text}`);
 
     if (message?.type === PUPPET.types.Message.Image) {
       return this.messageImage(messageId, PUPPET.types.Image.HD);
     }
 
-    if (message.type === PUPPET.types.Message.Video) {
+    if (message.type === PUPPET.types.Message.Emoticon) {
+      return this.getMessageEmoticon(message);
+    }
+
+    if (message.type === PUPPET.types.Message.Video || message.type === PUPPET.types.Message.Audio) {
       return this.getMessageFileBox(message);
     }
 
-    // if (message?.type === PUPPET.types.Message.Attachment) {
-    //   try {
-    //     const messageJson = await xmlToJson(message.text || '');
-
-    //     fileName = '\\' + messageJson.msg.appmsg[0].title[0];
-    //     dataPath = this.rootPath + this.userFilePath + fileName; // 要解密的文件路径
-    //     log.info('保存文件路径：', dataPath);
-
-    //     return FileBox.fromFile(dataPath, fileName);
-    //   } catch (err) {
-    //     log.error('保存图片messageFile fail:', err);
-    //   }
-    // }
-
-    // if (message?.type === PUPPET.types.Message.Emoticon && message.text) {
-    //   const text = JSON.parse(message.text);
-    //   try {
-    //     try {
-    //       fileName = text.md5 + '.png';
-    //       return FileBox.fromUrl(text.cdnurl, { name: fileName });
-    //     } catch (err) {
-    //       log.error('messageFile fail:', err);
-    //     }
-    //   } catch (err) {
-    //     log.error('messageFile fail:', err);
-    //   }
-    // }
-
-    if (
-      [PUPPET.types.Message.Video, PUPPET.types.Message.Audio].includes(message?.type || PUPPET.types.Message.Unknown)
-    ) {
-      throw new Error('not support message Video/`Audio');
+    if (message.type === PUPPET.types.Message.Attachment) {
+      // TODO: send attachment
+      log.info('messageFile', 'attachment');
+      return FileBox.fromUrl(REPOS_URL);
     }
 
-    return FileBox.fromFile(dataPath, fileName);
+    if (message.type === PUPPET.types.Message.MiniProgram) {
+      // TODO: send mini program
+      log.info('messageFile', 'mini program');
+      return FileBox.fromUrl(REPOS_URL);
+    }
+
+    if (message.type === PUPPET.types.Message.Url) {
+      // TODO: send url
+      log.info('messageFile', 'url');
+      return FileBox.fromUrl(REPOS_URL);
+    }
+
+    log.info(`messageFile unknown type: ${message.type}`);
+
+    return FileBox.fromUrl(REPOS_URL);
   }
 
   override async messageUrl(messageId: string): Promise<PUPPET.payloads.UrlLink>;
@@ -1514,170 +1547,10 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // Message Parser
 
-  private async normalizedMsgType(message: RecvMsg) {
-    log.verbose('PuppetBridge', 'msgTypeParser()');
-
-    const content = message.content;
-
-    let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
-    let type = PUPPET.types.Message.Unknown;
-
-    try {
-      const json = await xmlToJson(content, { explicitArray: false, ignoreAttrs: true });
-      log.info('PuppetBridge', 'json content:%s', JSON.stringify(json));
-
-      subType = json.msg.appmsg.type || subType;
-
-      switch (subType) {
-        case '5': // card link
-          type = PUPPET.types.Message.Url;
-          break;
-        case '4':
-          type = PUPPET.types.Message.Url;
-          break;
-        case '1':
-          type = PUPPET.types.Message.Url;
-          break;
-        case '6': // file
-          type = PUPPET.types.Message.Attachment;
-          break;
-        case '19':
-          type = PUPPET.types.Message.ChatHistory;
-          break;
-        case '33':
-          type = PUPPET.types.Message.MiniProgram;
-          break;
-        case '87':
-          type = PUPPET.types.Message.GroupNote;
-          break;
-        case '2000':
-          type = PUPPET.types.Message.Transfer;
-          break;
-        case '2001':
-          type = PUPPET.types.Message.RedEnvelope;
-          break;
-        case '10002':
-          type = PUPPET.types.Message.Recalled;
-          break;
-        default:
-      }
-    } catch (err) {
-      log.error('xml2js.parseString fail:', err);
-    }
-
-    return { type, subType };
-  }
-
-  private normalizedMsgContent(message: RecvMsg) {
-    log.verbose('PuppetBridge', 'normalizedMsgContent()');
-
-    const splitContent = message.content.split(':\n');
-    const content = splitContent.length > 1 ? splitContent[1] : message.content;
-
-    return content;
-  }
-
-  private async normalizedMsg(message: RecvMsg) {
-    let type = PUPPET.types.Message.Unknown;
-    let content = message.content;
-    let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
-
-    const code = message.type.valueOf();
-    switch (code) {
-      case 1:
-        type = PUPPET.types.Message.Text;
-        break;
-      case 3:
-        type = PUPPET.types.Message.Image;
-        content = this.normalizedMsgContent(message);
-        break;
-      case 4:
-        type = PUPPET.types.Message.Video;
-        break;
-      case 5:
-        type = PUPPET.types.Message.Url;
-        break;
-      case 34:
-        type = PUPPET.types.Message.Audio;
-        content = this.normalizedMsgContent(message);
-        break;
-      case 37:
-        type = PUPPET.types.Message.Contact;
-        break;
-      case 40:
-        break;
-      case 42:
-        type = PUPPET.types.Message.Contact;
-        break;
-      case 43:
-        type = PUPPET.types.Message.Video;
-        content = this.normalizedMsgContent(message);
-        break;
-      case 47:
-        type = PUPPET.types.Message.Emoticon;
-        content = this.normalizedMsgContent(message);
-        // try {
-        //   await new Promise((resolve, reject) => {
-        //     readXml.read(content, function (errors: any, xmlResponse: any) {
-        //       if (errors !== null) {
-        //         log.error(errors);
-        //         resolve(null);
-        //         return;
-        //       }
-        //       const xml2json = xmlResponse.msg.emoji.attributes();
-        //       content = JSON.stringify(xml2json);
-        //       resolve(null);
-        //     });
-        //   });
-        // } catch (err) {
-        //   log.error('xml2js.parseString fail:', err);
-        // }
-        break;
-      case 48:
-        type = PUPPET.types.Message.Location;
-        break;
-      case 49:
-        const data = await this.normalizedMsgType(message);
-        type = data.type;
-        subType = data.subType;
-        break;
-      case 50:
-        break;
-      case 51:
-        break;
-      case 52:
-        break;
-      case 53:
-        type = PUPPET.types.Message.GroupNote;
-        break;
-      case 62:
-        break;
-      case 9999:
-        break;
-      case 10000:
-        // room event
-        break;
-      case 10002:
-        type = PUPPET.types.Message.Recalled;
-        break;
-      case 1000000000:
-        type = PUPPET.types.Message.Post;
-        break;
-      default:
-    }
-
-    return {
-      content,
-      type,
-      subType
-    };
-  }
   private async msgHandler(message: RecvMsg): Promise<void> {
     const talkerId = message.talkerInfo?.userName;
 
     let roomId;
-
-    console.log('message', message);
 
     if (message.from.includes('@chatroom')) {
       roomId = message.from;
@@ -1692,7 +1565,7 @@ class PuppetBridge extends PUPPET.Puppet {
       } as PuppetContact);
     }
 
-    const { content, type } = await this.normalizedMsg(message);
+    const { content, type } = await normalizedMsg(message);
 
     const payload = {
       type,
