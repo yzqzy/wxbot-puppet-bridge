@@ -32,7 +32,8 @@ class Request {
 
     this.axiosIns = axios.create({
       baseURL: this.apiUrl,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 1000 * 30
     });
   }
 
