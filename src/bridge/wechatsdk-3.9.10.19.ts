@@ -144,6 +144,39 @@ class PuppetBridge extends PUPPET.Puppet {
     return contact.alias;
   }
 
+  override contactSearch(
+    query?: string | PUPPET.filters.Contact | undefined,
+    searchIdList?: string[] | undefined
+  ): Promise<string[]>;
+  override contactSearch(
+    query?: string | PUPPET.filters.Contact | undefined,
+    searchIdList?: string[] | undefined
+  ): Promise<string[]> {
+    log.verbose('PuppetBridge', 'contactSearch(%s, %s)', query, searchIdList || '');
+
+    const contactList = Array.from(this.contactStore.values());
+
+    let contacts: string[] = [];
+
+    if (typeof query === 'object') {
+      if (query.name) {
+        contacts = contactList.filter(contact => contact.name === query.name).map(contact => contact.id);
+      } else if (query.alias) {
+        contacts = contactList.filter(contact => contact.alias === query.alias).map(contact => contact.id);
+      } else if (query.id) {
+        contacts = contactList.filter(contact => contact.id === query.id).map(contact => contact.id);
+      }
+    } else if (typeof query === 'string') {
+      contacts = contactList
+        .filter(contact => contact.id === query || contact.name === query)
+        .map(contact => contact.id);
+    } else {
+      contacts = contactList.map(contact => contact.id);
+    }
+
+    return this.promiseWrap(() => contacts);
+  }
+
   override contactPhone(contactId: string, phoneList: string[]): Promise<void>;
   override contactPhone(contactId: string, phoneList: string[]): Promise<void> {
     log.verbose('PuppetBridge', 'contactPhone(%s, %s)', contactId, phoneList);
@@ -1045,6 +1078,9 @@ class PuppetBridge extends PUPPET.Puppet {
     log.verbose('PuppetBridge', 'messageSendUrl(%s, %s)', conversationId, urlLinkPayload);
 
     // TODO: send url
+
+    console.log('messageSendUrl', conversationId);
+    console.log('messageSendUrl', urlLinkPayload);
 
     return this.promiseWrap(() => {
       // throw new Error('not support messageSendUrl');
