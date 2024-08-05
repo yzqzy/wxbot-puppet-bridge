@@ -1597,16 +1597,15 @@ class PuppetBridge extends PUPPET.Puppet {
   // Message Parser
 
   private async msgHandler(message: RecvMsg): Promise<void> {
-    console.log('msgHandler', message);
-
     let roomId = '';
     let talkerId = '';
     let listenerId = '';
 
     if (message.from.includes('@chatroom')) {
+      const contentArr = message.content.split(':\n');
       roomId = message.from;
-      talkerId = message.content.split('\n').length > 1 ? message.content.split('\n')[0] : '';
-      message.content = message.content.replace(`${talkerId}\n`, '');
+      talkerId = contentArr.length > 1 ? contentArr[0] : '';
+      message.content = message.content.replace(`${talkerId}:\n`, '');
     } else if (message.to.includes('@chatroom')) {
       talkerId = message.from;
       roomId = message.to;
@@ -1620,6 +1619,11 @@ class PuppetBridge extends PUPPET.Puppet {
         id: talkerId
       } as PuppetContact);
     }
+    if (listenerId) {
+      await this.updateContactPayload({
+        id: listenerId
+      } as PuppetContact);
+    }
 
     const { content, type } = await normalizedMsg(message);
 
@@ -1627,8 +1631,6 @@ class PuppetBridge extends PUPPET.Puppet {
       type,
       id: message?.msgSvrID.toString(),
       text: content,
-      fromId: talkerId,
-      toId: roomId ? '' : listenerId,
       talkerId,
       listenerId: roomId ? '' : listenerId,
       timestamp: Date.now(),
