@@ -144,6 +144,39 @@ class PuppetBridge extends PUPPET.Puppet {
     return contact.alias;
   }
 
+  override contactSearch(
+    query?: string | PUPPET.filters.Contact | undefined,
+    searchIdList?: string[] | undefined
+  ): Promise<string[]>;
+  override contactSearch(
+    query?: string | PUPPET.filters.Contact | undefined,
+    searchIdList?: string[] | undefined
+  ): Promise<string[]> {
+    log.verbose('PuppetBridge', 'contactSearch(%s, %s)', query, searchIdList || '');
+
+    const contactList = Array.from(this.contactStore.values());
+
+    let contacts: string[] = [];
+
+    if (typeof query === 'object') {
+      if (query.name) {
+        contacts = contactList.filter(contact => contact.name === query.name).map(contact => contact.id);
+      } else if (query.alias) {
+        contacts = contactList.filter(contact => contact.alias === query.alias).map(contact => contact.id);
+      } else if (query.id) {
+        contacts = contactList.filter(contact => contact.id === query.id).map(contact => contact.id);
+      }
+    } else if (typeof query === 'string') {
+      contacts = contactList
+        .filter(contact => contact.id === query || contact.name === query)
+        .map(contact => contact.id);
+    } else {
+      contacts = contactList.map(contact => contact.id);
+    }
+
+    return this.promiseWrap(() => contacts);
+  }
+
   override contactPhone(contactId: string, phoneList: string[]): Promise<void>;
   override contactPhone(contactId: string, phoneList: string[]): Promise<void> {
     log.verbose('PuppetBridge', 'contactPhone(%s, %s)', contactId, phoneList);
@@ -1564,15 +1597,22 @@ class PuppetBridge extends PUPPET.Puppet {
   // Message Parser
 
   private async msgHandler(message: RecvMsg): Promise<void> {
-    const talkerId = message.talkerInfo?.userName;
+    console.log('msgHandler', message);
 
-    let roomId;
+    let roomId = '';
+    let talkerId = '';
+    let listenerId = '';
 
     if (message.from.includes('@chatroom')) {
       roomId = message.from;
+      talkerId = message.content.split('\n').length > 1 ? message.content.split('\n')[0] : '';
       message.content = message.content.replace(`${talkerId}\n`, '');
     } else if (message.to.includes('@chatroom')) {
+      talkerId = message.from;
       roomId = message.to;
+    } else {
+      talkerId = message.from;
+      listenerId = message.to;
     }
 
     if (talkerId) {
@@ -1586,12 +1626,12 @@ class PuppetBridge extends PUPPET.Puppet {
     const payload = {
       type,
       id: message?.msgSvrID.toString(),
-      talkerId,
       text: content,
-      listenerId: message.to,
+      fromId: talkerId,
+      toId: roomId ? '' : listenerId,
+      talkerId,
+      listenerId: roomId ? '' : listenerId,
       timestamp: Date.now(),
-      fromId: message.from,
-      toId: message.to,
       roomId
     } as Message;
 
