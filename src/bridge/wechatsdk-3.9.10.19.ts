@@ -744,15 +744,15 @@ class PuppetBridge extends PUPPET.Puppet {
     }
     if (imageType === PUPPET.types.Image.HD) {
       return {
-        fileType: 1,
-        attr: 'cdnbigimgurl',
+        fileType: 2,
+        attr: 'cdnmidimgurl',
         suffix: 'hd'
       };
     }
     return {
-      fileType: 2,
-      attr: 'cdnmidimgurl',
-      sufffix: 'normal'
+      fileType: 1,
+      attr: 'cdnbigimgurl',
+      suffix: 'normal'
     };
   }
 
@@ -1600,20 +1600,31 @@ class PuppetBridge extends PUPPET.Puppet {
   // Message Parser
 
   private async msgHandler(message: RecvMsg): Promise<void> {
-    const talkerId = message.talkerInfo?.userName;
-
-    let roomId;
+    let roomId = '';
+    let talkerId = '';
+    let listenerId = '';
 
     if (message.from.includes('@chatroom')) {
+      const contentArr = message.content.split(':\n');
       roomId = message.from;
-      message.content = message.content.replace(`${talkerId}\n`, '');
+      talkerId = contentArr.length > 1 ? contentArr[0] : '';
+      message.content = message.content.replace(`${talkerId}:\n`, '');
     } else if (message.to.includes('@chatroom')) {
+      talkerId = message.from;
       roomId = message.to;
+    } else {
+      talkerId = message.from;
+      listenerId = message.to;
     }
 
     if (talkerId) {
       await this.updateContactPayload({
         id: talkerId
+      } as PuppetContact);
+    }
+    if (listenerId) {
+      await this.updateContactPayload({
+        id: listenerId
       } as PuppetContact);
     }
 
@@ -1622,12 +1633,10 @@ class PuppetBridge extends PUPPET.Puppet {
     const payload = {
       type,
       id: message?.msgSvrID.toString(),
-      talkerId,
       text: content,
-      listenerId: message.to,
+      talkerId,
+      listenerId: roomId ? '' : listenerId,
       timestamp: Date.now(),
-      fromId: message.from,
-      toId: message.to,
       roomId
     } as Message;
 
