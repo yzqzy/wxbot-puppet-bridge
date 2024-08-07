@@ -711,15 +711,15 @@ class PuppetBridge extends PUPPET.Puppet {
     }
     if (imageType === PUPPET.types.Image.HD) {
       return {
-        fileType: 1,
-        attr: 'cdnbigimgurl',
+        fileType: 2,
+        attr: 'cdnmidimgurl',
         suffix: 'hd'
       };
     }
     return {
-      fileType: 2,
-      attr: 'cdnmidimgurl',
-      sufffix: 'normal'
+      fileType: 1,
+      attr: 'cdnbigimgurl',
+      suffix: 'normal'
     };
   }
 
