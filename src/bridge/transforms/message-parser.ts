@@ -57,8 +57,8 @@ const normalizedMsgType = async (message: RecvMsg) => {
   return { type, subType };
 };
 
-const normalizedMsgContent = (message: RecvMsg) => {
-  log.verbose('PuppetBridge', 'normalizedMsgContent()');
+const rewriteMsgContent = (message: RecvMsg) => {
+  log.verbose('PuppetBridge', 'rewriteMsgContent()');
 
   const splitContent = message.content.split(':\n');
   const content = splitContent.length > 1 ? splitContent[1] : message.content;
@@ -71,7 +71,7 @@ export const normalizedMsg = async (message: RecvMsg) => {
   let content = message.content;
   let subType = content.match(/<type>(\d+)<\/type>/)?.[1] ? String(content.match(/<type>(\d+)<\/type>/)?.[1]) : '0';
 
-  content = normalizedMsgContent(message);
+  content = rewriteMsgContent(message);
 
   const code = message.type.valueOf();
   switch (code) {
