@@ -39,10 +39,13 @@ interface PuppetRoom extends Room {
   members: RoomMember[];
 }
 interface PuppetContact extends Contact {
+  nation?: string;
+  remark?: string;
   tags: string[];
 }
 
 interface PuppetUser extends Contact {
+  nation?: string;
   cachePath: string;
   dbKey: string;
   exePath: string;
@@ -56,8 +59,6 @@ class PuppetBridge extends PUPPET.Puppet {
   private bridge!: Bridge;
 
   private userInfo!: PuppetUser;
-
-  private rootPath: string = getRootPath();
 
   // FIXME: use LRU cache for message store so that we can reduce memory usage
   private messageStore = new Map<string, Message>();
@@ -1221,10 +1222,12 @@ class PuppetBridge extends PUPPET.Puppet {
       const contactInfo = await this.bridge.getContactInfo(contact.id);
       if (!contactInfo) return;
 
+      contact.friend = !contactInfo.ticketInfo;
       contact.gender = contactInfo.sex;
+      contact.nation = contactInfo.nation || '';
       contact.city = contactInfo.city;
       contact.province = contactInfo.province;
-      contact.address = contactInfo.province + contactInfo.city;
+      contact.address = [contact.province, contact.city].filter(Boolean).join(' ');
       contact.alias = contactInfo.alias;
       contact.signature = contactInfo.signature;
       contact.tags = contactInfo?.labelIds.map(id => String(id)) || [];
@@ -1256,8 +1259,8 @@ class PuppetBridge extends PUPPET.Puppet {
         const contactPayload = {
           id: contact.UserName,
           name: contact.NickName,
+          remark: contact.Remark,
           type: contactType,
-          friend: true,
           phone: [] as string[],
           avatar: contact.smallHeadImgUrl
         } as PuppetContact;
@@ -1268,12 +1271,18 @@ class PuppetBridge extends PUPPET.Puppet {
       const updateContactPromises = this.mapValues(this.contactStore).map(contact => {
         return this.updateContactPayload(contact, true);
       });
-      let size = updateContactPromises.length;
 
-      // update contact payload in batch
+      const total = updateContactPromises.length;
+
+      let size = updateContactPromises.length;
       while (size > 0) {
+        // update contact payload in batch
         await Promise.all(updateContactPromises.splice(0, 15));
         size = updateContactPromises.length;
+
+        // progress compute
+        const progress = ((total - size) / total) * 100;
+        log.info('PuppetBridge', 'loadContacts() progress %s', `${progress.toFixed(2)}%`);
       }
 
       log.info('PuppetBridge', 'loadContacts() contacts count %s', this.contactStore.size);
@@ -1371,6 +1380,7 @@ class PuppetBridge extends PUPPET.Puppet {
       name: user.nickName,
       alias: user.alias,
       friend: false,
+      nation: user.nation,
       city: user.city,
       province: user.province,
       signature: user.signature,
