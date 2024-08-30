@@ -95,6 +95,10 @@ class PuppetBridge extends PUPPET.Puppet {
     return path.join(this.userPath, `FileStorage\\File\\${year}-${month}\\`);
   }
 
+  public userSelf(): PuppetUser {
+    return this.userInfo;
+  }
+
   override version(): string {
     return VERSION;
   }
