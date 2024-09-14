@@ -23,7 +23,7 @@ import Bridge from '@src/agents/wechatsdk-agent';
 import { getDates, jsonStringify } from '@src/shared/tools';
 import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
-import { createDirIfNotExist, getRootPath, removeFile, xmlToJson, xmlDecrypt } from '@src/shared';
+import { createDirIfNotExist, removeFile, xmlToJson, xmlDecrypt, delaySync } from '@src/shared';
 import { normalizedMsg } from './transforms/message-parser';
 
 const VERSION = '3.9.10.19';
@@ -57,11 +57,12 @@ class PuppetBridge extends PUPPET.Puppet {
   private isReady: boolean = false;
 
   private bridge!: Bridge;
-
   private userInfo!: PuppetUser;
 
   // FIXME: use LRU cache for message store so that we can reduce memory usage
+  private messageStoreMaxCount = 1000 * 10;
   private messageStore = new Map<string, Message>();
+
   private contactStore = new Map<string, PuppetContact>();
   private roomStore = new Map<string, PuppetRoom>();
 
@@ -82,7 +83,11 @@ class PuppetBridge extends PUPPET.Puppet {
     });
   }
 
-  get bridgeAgent(): Bridge {
+  override version(): string {
+    return VERSION;
+  }
+
+  get Agent(): Bridge {
     return this.bridge;
   }
 
@@ -97,10 +102,6 @@ class PuppetBridge extends PUPPET.Puppet {
 
   public userSelf(): PuppetUser {
     return this.userInfo;
-  }
-
-  override version(): string {
-    return VERSION;
   }
 
   override login(contactId: string) {
@@ -1191,6 +1192,7 @@ class PuppetBridge extends PUPPET.Puppet {
     this.bridge.on('logout', this.onLogout.bind(this));
     this.bridge.on('message', this.onMessage.bind(this));
     this.bridge.on('error', this.onError.bind(this));
+    this.bridge.on('unauthorized', this.onUnauthorized.bind(this));
   }
 
   private async onAgentReady(): Promise<void> {
@@ -1229,8 +1231,8 @@ class PuppetBridge extends PUPPET.Puppet {
       contact.friend = !contactInfo.ticketInfo;
       contact.gender = contactInfo.sex;
       contact.nation = contactInfo.nation || '';
-      contact.city = contactInfo.city;
-      contact.province = contactInfo.province;
+      contact.city = contactInfo.city || '';
+      contact.province = contactInfo.province || '';
       contact.address = [contact.province, contact.city].filter(Boolean).join(' ');
       contact.alias = contactInfo.alias;
       contact.signature = contactInfo.signature;
@@ -1281,12 +1283,20 @@ class PuppetBridge extends PUPPET.Puppet {
       let size = updateContactPromises.length;
       while (size > 0) {
         // update contact payload in batch
-        await Promise.all(updateContactPromises.splice(0, 15));
+        await Promise.all(updateContactPromises.splice(0, 20));
         size = updateContactPromises.length;
 
         // progress compute
         const progress = ((total - size) / total) * 100;
         log.info('PuppetBridge', 'loadContacts() progress %s', `${progress.toFixed(2)}%`);
+
+        // emit progress event
+        this.emit('progress', {
+          progress: +progress.toFixed(2)
+        });
+
+        // delay for next batch
+        await delaySync(1000);
       }
 
       log.info('PuppetBridge', 'loadContacts() contacts count %s', this.contactStore.size);
@@ -1397,6 +1407,8 @@ class PuppetBridge extends PUPPET.Puppet {
 
     this.userInfo = userPayload;
 
+    await delaySync(1000 * 3);
+
     // init contacts store
     await this.loadContacts();
     // init rooms store
@@ -1419,6 +1431,13 @@ class PuppetBridge extends PUPPET.Puppet {
   }
   private isRecvMsg(msg: RecvMsg | RecvScanMsg): msg is RecvMsg {
     return (msg as RecvMsg)?.type !== null && (msg as RecvMsg)?.type !== undefined;
+  }
+
+  private addMessageToStore(message: Message) {
+    if (this.messageStore.size >= this.messageStoreMaxCount) {
+      this.messageStore.delete(this.messageStore.keys().next().value);
+    }
+    this.messageStore.set(message.id, message);
   }
 
   private async scanMsgHandler(message: RecvScanMsg): Promise<void> {
@@ -1661,17 +1680,15 @@ class PuppetBridge extends PUPPET.Puppet {
       this.roomMsgHandler(payload);
     } else if (this.isInviteMsg(payload)) {
       this.inviteMsgHandler(payload);
-      this.messageStore.set(payload.id, payload);
+      this.addMessageToStore(payload);
     } else {
       log.info('PuppetBridge', 'onMessage() message payload %s', jsonStringify(payload));
-      this.messageStore.set(payload.id, payload);
+      this.addMessageToStore(payload);
       this.emit('message', { messageId: payload.id } as EventMessage);
     }
   }
 
   private async onMessage(message: RecvMsg | RecvScanMsg): Promise<void> {
-    log.verbose('PuppetBridge', 'onMessage()');
-
     if (!message || !this.isReady) return;
 
     if (this.isRecvScanMsg(message)) {
@@ -1690,7 +1707,7 @@ class PuppetBridge extends PUPPET.Puppet {
     log.warn('PuppetBridge', 'onMessage() unknown message');
   }
 
-  private async onError(error: Error): Promise<void> {
+  private onError(error: Error): void {
     log.error('PuppetBridge', 'onError()');
 
     if (!error) return;
@@ -1699,6 +1716,9 @@ class PuppetBridge extends PUPPET.Puppet {
       data: error.stack,
       gerror: error.message
     } as EventError);
+  }
+  private onUnauthorized(data: any) {
+    this.emit('unauthorized', data);
   }
 }
 

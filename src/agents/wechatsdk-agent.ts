@@ -516,7 +516,12 @@ class Bridge extends EventEmitter {
     try {
       const res = await this.wechatsdk.hook(protocol, url);
 
-      if (res.error_code !== 10000) throw new Error('hook msg failed');
+      if (res.error_code !== 10000) {
+        if (res.error_code === 10004) {
+          this.emit('unauthorized', res.description || 'unauthorized hook');
+        }
+        throw new Error(res.description || 'hook msg failed');
+      }
 
       const data = res.data;
 
