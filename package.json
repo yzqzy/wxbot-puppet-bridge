@@ -1,6 +1,6 @@
 {
   "name": "wxbot-puppet-bridge",
-  "version": "1.0.16",
+  "version": "1.0.18",
   "description": "Puppet Bridge for WeChat Robots",
   "scripts": {
     "dev": "nodemon --config ./examples/nodemon.json",

@@ -143,6 +143,7 @@ export interface ContactInfo {
   smallHeadImgUrl: string;
   userFlag: number;
   userName: string;
+  ticketInfo?: any;
 }
 
 export interface ChatRoom {

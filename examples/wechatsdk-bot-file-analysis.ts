@@ -12,6 +12,7 @@ async function main() {
 
   bot.on('login', user => {
     log.info('Bot use login: ', jsonStringify(user));
+    log.info('Bot userInfo: ', jsonStringify(puppet.userSelf()));
   });
 
   bot.on('ready', () => {
