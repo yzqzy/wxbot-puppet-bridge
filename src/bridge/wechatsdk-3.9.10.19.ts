@@ -21,10 +21,11 @@ import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import { REPOS_URL } from '@src/config/config';
 import Bridge from '@src/agents/wechatsdk-agent';
 import { getDates, jsonStringify } from '@src/shared/tools';
-import { RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
+import { ContactVerifyResult, RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
 import { createDirIfNotExist, removeFile, xmlToJson, xmlDecrypt, delaySync } from '@src/shared';
 import { normalizedMsg } from './transforms/message-parser';
+import { generateUrlLinkMessageXml, generateMiniProgramMessageXml } from './transforms/message-generate';
 
 const VERSION = '3.9.10.19';
 
@@ -119,7 +120,6 @@ class PuppetBridge extends PUPPET.Puppet {
   }
 
   // Contact --------------
-
   override contactRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Contact>;
   override contactRawPayloadParser(rawPayload: any): Promise<PUPPET.payloads.Contact> {
     return this.promiseWrap(() => {
@@ -189,12 +189,37 @@ class PuppetBridge extends PUPPET.Puppet {
 
     throw new Error('not support set phone');
   }
+  async contactDelete(id: string): Promise<void> {
+    log.verbose('PuppetBridge', 'contactDelete(%s)', id);
 
-  override contactList(): Promise<string[]>;
-  override contactList(): Promise<string[]> {
-    log.verbose('PuppetBridge', 'contactList()');
+    const contact = this.contactStore.get(id);
+    if (!contact) {
+      log.error('contactDelete: contact not found');
+      return;
+    }
 
-    return this.promiseWrap(() => Array.from(this.contactStore.keys()));
+    await this.bridge.deleteContact(id);
+
+    this.contactStore.delete(id);
+
+    log.info('contactDelete: delete contact success');
+  }
+  async contactRemark(id: string, alias: string): Promise<void> {
+    log.verbose('PuppetBridge', 'contactRemark(%s, %s)', id, alias);
+
+    const contact = this.contactStore.get(id);
+    if (!contact) throw new Error('contact not found');
+
+    await this.bridge.updateContactRemark(id, alias);
+
+    contact.alias = alias;
+    this.contactStore.set(id, contact);
+
+    log.info('contactRemark: update contact remark success');
+  }
+  async contactQuery(keyword: string): Promise<ContactVerifyResult> {
+    log.verbose('PuppetBridge', 'contactQuery(%s)', keyword);
+    return await this.bridge.queryContact(keyword);
   }
 
   override contactAvatar(contactId: string): Promise<FileBoxInterface>;
@@ -210,6 +235,13 @@ class PuppetBridge extends PUPPET.Puppet {
     if (!contact) throw new Error('contact not found');
 
     return this.promiseWrap(() => FileBox.fromUrl(contact.avatar));
+  }
+
+  override contactList(): Promise<string[]>;
+  override contactList(): Promise<string[]> {
+    log.verbose('PuppetBridge', 'contactList()');
+
+    return this.promiseWrap(() => Array.from(this.contactStore.keys()));
   }
 
   // Room --------------
@@ -1079,18 +1111,25 @@ class PuppetBridge extends PUPPET.Puppet {
     removeFile(filePath);
   }
 
-  override messageSendUrl(conversationId: string, urlLinkPayload: PUPPET.payloads.UrlLink): Promise<string | void>;
-  override messageSendUrl(conversationId: string, urlLinkPayload: PUPPET.payloads.UrlLink): Promise<string | void> {
+  override async messageSendUrl(
+    conversationId: string,
+    urlLinkPayload: PUPPET.payloads.UrlLink
+  ): Promise<string | void>;
+  override async messageSendUrl(
+    conversationId: string,
+    urlLinkPayload: PUPPET.payloads.UrlLink
+  ): Promise<string | void> {
     log.verbose('PuppetBridge', 'messageSendUrl(%s, %s)', conversationId, urlLinkPayload);
 
-    // TODO: send url
+    try {
+      const xmlStr = generateUrlLinkMessageXml(urlLinkPayload);
+      await this.bridge.sendLinkMsg(conversationId, xmlStr);
+    } catch (error) {
+      log.error('messageSendUrl fail:', error);
+      throw new Error('messageSendUrl fail');
+    }
 
-    console.log('messageSendUrl', conversationId);
-    console.log('messageSendUrl', urlLinkPayload);
-
-    return this.promiseWrap(() => {
-      // throw new Error('not support messageSendUrl');
-    });
+    log.info('messageSendUrl', 'urlLinkPayload', urlLinkPayload);
   }
 
   override async messageSendContact(conversationId: string, contactId: string): Promise<string | void>;
@@ -1104,21 +1143,25 @@ class PuppetBridge extends PUPPET.Puppet {
     }
   }
 
-  override messageSendMiniProgram(
+  override async messageSendMiniProgram(
     conversationId: string,
     miniProgramPayload: PUPPET.payloads.MiniProgram
   ): Promise<string | void>;
-  override messageSendMiniProgram(
+  override async messageSendMiniProgram(
     conversationId: string,
     miniProgramPayload: PUPPET.payloads.MiniProgram
   ): Promise<string | void> {
     log.verbose('PuppetBridge', 'messageSendMiniProgram(%s, %s)', conversationId, miniProgramPayload);
 
-    // TODO: send mini program
+    try {
+      const xmlStr = generateMiniProgramMessageXml(miniProgramPayload);
+      await this.bridge.sendXmlMsg(conversationId, xmlStr);
+    } catch (error) {
+      log.error('messageSendMiniProgram fail:', error);
+      throw new Error('messageSendMiniProgram fail');
+    }
 
-    return this.promiseWrap(() => {
-      // throw new Error('not support messageSendMiniProgram');
-    });
+    log.info('messageSendMiniProgram', 'miniProgramPayload', miniProgramPayload);
   }
 
   override messageForward(conversationId: string, messageId: string): Promise<string | void>;

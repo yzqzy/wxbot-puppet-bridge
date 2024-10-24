@@ -42,12 +42,25 @@ class Bridge extends EventEmitter {
     this.initOptions(options);
   }
 
-  start() {
+  getErrorMsg(error: any, defaultMsg?: string) {
+    if (error.description) return error.description;
+    if (error.message) return error.message;
+    if (error.data && error.data.desc) return error.data.desc;
+    return defaultMsg || 'unknown error';
+  }
+
+  async start() {
     this.catchErrors();
     this.createInstance();
-    this.createApp();
-    this.startTimer();
-    log.info('WeChat SDK server is started');
+
+    try {
+      await this.createApp();
+      this.startTimer();
+      log.info('WeChat SDK server is started');
+    } catch (error) {
+      this.stop();
+      log.info('WeChat SDK server start failed', error);
+    }
   }
 
   async stop(err?: any) {
@@ -74,12 +87,22 @@ class Bridge extends EventEmitter {
     process.exit(0);
   }
 
+  async logout() {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.logout();
+
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'logout failed'));
+
+    return res.data;
+  }
+
   async getContactList() {
     if (!this.isLoggedIn) throw new Error('user is not logged in');
 
     const res = await this.wechatsdk.contactList();
 
-    if (res.error_code !== 10000) throw new Error('get contacts failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get contacts failed'));
 
     return res.data.data;
   }
@@ -89,7 +112,37 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.contactInfo(contactId);
 
-    if (res.error_code !== 10000) throw new Error('get contact info failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get contact info failed'));
+
+    return res.data.data;
+  }
+
+  async deleteContact(contactId: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.contactDelete(contactId);
+
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'delete contact failed'));
+
+    return res.data;
+  }
+
+  async updateContactRemark(contactId: string, remark: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.contactRemark(contactId, remark);
+
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'update contact remark failed'));
+
+    return res.data;
+  }
+
+  async queryContact(query: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.contactQuery(query);
+
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'query contact failed'));
 
     return res.data.data;
   }
@@ -99,7 +152,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.chatroomDetailList();
 
-    if (res.error_code !== 10000) throw new Error('get chatrooms detail failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get chatrooms detail failed'));
 
     return res.data.data;
   }
@@ -109,7 +162,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.chatroomList();
 
-    if (res.error_code !== 10000) throw new Error('get chatrooms failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get chatrooms failed'));
 
     return res.data.data;
   }
@@ -119,7 +172,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.chatroomInfo(chatroomId);
 
-    if (res.error_code !== 10000) throw new Error('get chatroom info failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get chatroom info failed'));
 
     return res.data.data;
   }
@@ -129,7 +182,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.chatroomMembers(chatroomId);
 
-    if (res.error_code !== 10000) throw new Error('get chatroom members failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get chatroom members failed'));
 
     return res.data.data;
   }
@@ -139,7 +192,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendText(contactId, text, atContactIds);
 
-    if (res.error_code !== 10000) throw new Error('send text msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send text msg failed'));
 
     return res.data;
   }
@@ -149,7 +202,17 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendImage(contactId, image);
 
-    if (res.error_code !== 10000) throw new Error('send image msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send image msg failed'));
+
+    return res.data;
+  }
+
+  async sendVideoMsg(wxid: string, video: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendVideo(wxid, video);
+
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send file msg failed'));
 
     return res.data;
   }
@@ -159,7 +222,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendFile(contactId, file);
 
-    if (res.error_code !== 10000) throw new Error('send file msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send file msg failed'));
 
     return res.data;
   }
@@ -169,7 +232,17 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendContact(contactId, contactId2);
 
-    if (res.error_code !== 10000) throw new Error('send contact msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send contact msg failed'));
+
+    return res.data;
+  }
+
+  async sendEnterpriseContactMsg(wxid: string, target: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendEnterpriseContact(wxid, target);
+
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send business card msg failed'));
 
     return res.data;
   }
@@ -179,17 +252,17 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendPublicAccount(contactId, contactId2);
 
-    if (res.error_code !== 10000) throw new Error('send public account msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send public account msg failed'));
 
     return res.data;
   }
 
-  async sendBusinessCardMsg(contactId: string, contactId2: string) {
+  async sendVideoAccountMsg(wxid: string, target: string) {
     if (!this.isLoggedIn) throw new Error('user is not logged in');
 
-    const res = await this.wechatsdk.sendBusinessUsers(contactId, contactId2);
+    const res = await this.wechatsdk.sendVideoAccount(wxid, target);
 
-    if (res.error_code !== 10000) throw new Error('send business card msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send video account msg failed'));
 
     return res.data;
   }
@@ -199,7 +272,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendPat(contactId, contactId2);
 
-    if (res.error_code !== 10000) throw new Error('send pat msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send pat msg failed'));
 
     return res.data;
   }
@@ -209,7 +282,17 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendEmoji(contactId, emoji);
 
-    if (res.error_code !== 10000) throw new Error('send emoji msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send emoji msg failed'));
+
+    return res.data;
+  }
+
+  async sendXmlMsg(wxid: string, content: string) {
+    if (!this.isLoggedIn) throw new Error('user is not logged in');
+
+    const res = await this.wechatsdk.sendXml(wxid, content);
+
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send xml msg failed'));
 
     return res.data;
   }
@@ -219,7 +302,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendLink(contactId, content);
 
-    if (res.error_code !== 10000) throw new Error('send link msg failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send link msg failed'));
 
     return res.data;
   }
@@ -229,7 +312,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.sendLocation(location);
 
-    if (res.error_code !== 10000) throw new Error('send location failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'send location failed'));
 
     return res.data;
   }
@@ -238,7 +321,7 @@ class Bridge extends EventEmitter {
     if (!this.isLoggedIn) throw new Error('user is not logged in');
 
     const res = await this.wechatsdk.createChatRoom(contactIds);
-    if (res.error_code !== 10000) throw new Error('create chatroom failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'create chatroom failed'));
 
     return res.data;
   }
@@ -248,7 +331,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.destoryChatRoom(chatroomId);
 
-    if (res.error_code !== 10000) throw new Error('destroy chatroom failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'destroy chatroom failed'));
 
     return res.data;
   }
@@ -258,7 +341,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.transferChatRoomOwner(chatroomId, contactId);
 
-    if (res.error_code !== 10000) throw new Error('transfer chatroom owner failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'transfer chatroom owner failed'));
 
     return res.data;
   }
@@ -268,7 +351,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.quitChatRoom(chatroomId);
 
-    if (res.error_code !== 10000) throw new Error('exit chatroom failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'exit chatroom failed'));
 
     return res.data;
   }
@@ -278,7 +361,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.modifyChatRoomName(chatroomId, topic);
 
-    if (res.error_code !== 10000) throw new Error('modify room topic failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'modify room topic failed'));
 
     return res.data;
   }
@@ -288,7 +371,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.modifyChatRoomAnnouncement(chatroomId, announcement);
 
-    if (res.error_code !== 10000) throw new Error('modify room announcement failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'modify room announcement failed'));
 
     return res.data;
   }
@@ -298,7 +381,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.addChatRoomMembers(chatroomId, contactIds);
 
-    if (res.error_code !== 10000) throw new Error('add room members failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'add room members failed'));
 
     return res.data;
   }
@@ -308,7 +391,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.removeChatRoomMembers(chatroomId, contactIds);
 
-    if (res.error_code !== 10000) throw new Error('remove room members failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'remove room members failed'));
 
     return res.data;
   }
@@ -318,7 +401,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.inviteChatRoomMembers(chatroomId, contactIds);
 
-    if (res.error_code !== 10000) throw new Error('invite room member failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'invite room member failed'));
 
     return res.data;
   }
@@ -328,7 +411,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.addChatRoomManager(chatroomId, contactId);
 
-    if (res.error_code !== 10000) throw new Error('add room manager failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'add room manager failed'));
 
     return res.data;
   }
@@ -338,7 +421,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.removeChatRoomManager(chatroomId, contactId);
 
-    if (res.error_code !== 10000) throw new Error('remove room manager failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'remove room manager failed'));
 
     return res.data;
   }
@@ -348,7 +431,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.chatRoomInvitation(url, inviteType);
 
-    if (res.error_code !== 10000) throw new Error('room invitation failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'room invitation failed'));
 
     return res.data;
   }
@@ -358,7 +441,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.tagsList();
 
-    if (res.error_code !== 10000) throw new Error('get tag list failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get tag list failed'));
 
     return res.data.data;
   }
@@ -368,7 +451,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.addTag(title);
 
-    if (res.error_code !== 10000) throw new Error('add tag failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'add tag failed'));
 
     return res.data;
   }
@@ -378,7 +461,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.modifyTag(Number(tagId), title);
 
-    if (res.error_code !== 10000) throw new Error('modify tag failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'modify tag failed'));
 
     return res.data;
   }
@@ -388,7 +471,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.removeTag(Number(tagId));
 
-    if (res.error_code !== 10000) throw new Error('remove tag failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'remove tag failed'));
 
     return res.data;
   }
@@ -398,7 +481,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.modifyTagMember(contactId, tagIds.map(Number));
 
-    if (res.error_code !== 10000) throw new Error('modify tag member failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'modify tag member failed'));
 
     return res.data;
   }
@@ -408,7 +491,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.cdnDownload(params);
 
-    if (res.error_code !== 10000) throw new Error('cdn download failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'cdn download failed'));
 
     return res.data;
   }
@@ -418,7 +501,7 @@ class Bridge extends EventEmitter {
 
     const res = await this.wechatsdk.cdnUpload(params);
 
-    if (res.error_code !== 10000) throw new Error('cdn upload failed');
+    if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'cdn upload failed'));
 
     return res.data;
   }
@@ -627,7 +710,7 @@ class Bridge extends EventEmitter {
 
       const res = await this.wechatsdk.qrcode();
 
-      if (res.error_code !== 10000) throw new Error('get qrcode failed');
+      if (res.error_code !== 10000) throw new Error(this.getErrorMsg(res, 'get qrcode failed'));
 
       const qrcodeUrl = await decodeQRCode(Buffer.from(res.data.qrcode));
       log.info(`get qrcode success, url: ${qrcodeUrl}`);

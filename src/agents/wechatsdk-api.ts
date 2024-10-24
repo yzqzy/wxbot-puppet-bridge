@@ -16,7 +16,8 @@ import {
   Tag,
   CdnUploadParams,
   CdnResult,
-  CdnDownloadParams
+  CdnDownloadParams,
+  ContactVerifyResult
 } from './wechatsdk-types';
 
 interface WeChatSdkApiOptions {
@@ -72,7 +73,7 @@ class WeChatSdkApi {
     return this.request.post<DataResult<Contact[]>>('/api/', {
       type: 10058,
       dbName: 'MicroMsg.db',
-      sql: `SELECT UserName,Remark,NickName,PYInitial,RemarkPYInitial,t2.smallHeadImgUrl FROM Contact t1 LEFT JOIN ContactHeadImgUrl t2 ON t1.UserName = t2.usrName WHERE t1.VerifyFlag = 0 AND (t1.Type = 3 OR t1.Type > 50) and t1.Type != 2050 AND t1.UserName NOT IN ('qmessage', 'tmessage') AND t1.UserName NOT LIKE '%chatroom%' ORDER BY t1.Remark DESC;`
+      sql: `SELECT UserName,Remark,NickName,PYInitial,RemarkPYInitial,t2.smallHeadImgUrl FROM Contact t1 LEFT JOIN ContactHeadImgUrl t2 ON t1.UserName = t2.usrName WHERE t1.VerifyFlag = 0 AND (t1.Type = 1 OR t1.Type = 3 OR t1.Type > 50) and t1.Type != 2050 AND t1.UserName NOT IN ('qmessage', 'tmessage') AND t1.UserName NOT LIKE '%chatroom%' ORDER BY t1.Remark DESC;`
     });
   }
 
@@ -80,6 +81,28 @@ class WeChatSdkApi {
     return this.request.post<DataResult<ContactInfo>>('/api/', {
       type: 10015,
       userName
+    });
+  }
+
+  contactDelete(userName: string) {
+    return this.request.post<NormalResult>('/api/', {
+      type: 10051,
+      userName
+    });
+  }
+
+  contactRemark(userName: string, remark: string) {
+    return this.request.post<NormalResult>('/api/', {
+      type: 10013,
+      userName,
+      remark
+    });
+  }
+
+  contactQuery(keyword: string) {
+    return this.request.post<DataResult<ContactVerifyResult>>('/api/', {
+      type: 43,
+      keyword
     });
   }
 
@@ -98,7 +121,7 @@ class WeChatSdkApi {
     return this.request.post<DataResult<ChatRoom[]>>('/api/', {
       type: 10058,
       dbName: 'MicroMsg.db',
-      sql: `SELECT UserName,Remark, NickName,PYInitial,RemarkPYInitial,Type FROM Contact t1 WHERE t1.Type in(2,2050) OR (t1.Type = 3 AND t1.UserName LIKE '%chatroom%')`
+      sql: `SELECT UserName,Remark, NickName,PYInitial,RemarkPYInitial,Type FROM Contact t1 WHERE t1.Type in(2,2050,268435458) OR (t1.Type = 3 AND t1.UserName LIKE '%chatroom%')`
     });
   }
 
@@ -269,6 +292,14 @@ class WeChatSdkApi {
     });
   }
 
+  sendVideo(userName: string, filePath: string) {
+    return this.request.post<MessageResult>('/api/', {
+      type: 10093,
+      userName,
+      filePath
+    });
+  }
+
   sendImage(userName: string, filePath: string) {
     return this.request.post<MessageResult>('/api/', {
       type: 10010,
@@ -293,6 +324,14 @@ class WeChatSdkApi {
     });
   }
 
+  sendEnterpriseContact(userName: string, openimUserName: string) {
+    return this.request.post<MessageResult>('/api/', {
+      type: 10110,
+      userName,
+      openimUserName
+    });
+  }
+
   sendPublicAccount(userName: string, bizUserName: string) {
     return this.request.post<MessageResult>('/api/', {
       type: 10107,
@@ -301,11 +340,11 @@ class WeChatSdkApi {
     });
   }
 
-  sendBusinessUsers(userName: string, openimUserName: string) {
+  sendVideoAccount(userName: string, finderUserName: string) {
     return this.request.post<MessageResult>('/api/', {
-      type: 10110,
+      type: 10108,
       userName,
-      openimUserName
+      finderUserName
     });
   }
 
@@ -322,6 +361,14 @@ class WeChatSdkApi {
       type: 10011,
       userName,
       emojiPath
+    });
+  }
+
+  sendXml(userName: string, content: string) {
+    return this.request.post<MessageResult>('/api/', {
+      type: 10053,
+      userName,
+      content
     });
   }
 

@@ -283,3 +283,16 @@ export interface CdnResult {
   ver: string;
   'x-ClientIp': string;
 }
+
+export interface ContactVerifyResult {
+  bigHeadImgUrl: string;
+  city?: string;
+  encryptUserName: string; // v3_xxx
+  nation?: string;
+  nickName: string;
+  province?: string;
+  sex: number; // 0: unknown, 1: male, 2: female
+  signature: string;
+  smallHeadImgUrl: string;
+  ticket: string; // v4_xxx
+}

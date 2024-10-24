@@ -33,14 +33,14 @@ async function main() {
       // await contact?.say(fileBox);
 
       // 3. send url link to contact
-      // const urlLink = new bot.UrlLink({
-      //   title: 'Wechaty',
-      //   url: 'https://github.com/wechaty/wechaty',
-      //   thumbnailUrl: 'https://avatars1.githubusercontent.com/u/25162437?s=200&v=4',
-      //   description:
-      //     'Wechaty is a Conversational AI Chatbot SDK for Individual Account, Group Chat, and Multi-Person Chat.'
-      // });
-      // await contact?.say(urlLink);
+      const urlLink = new bot.UrlLink({
+        title: 'Wechaty',
+        url: 'https://github.com/wechaty/wechaty',
+        thumbnailUrl: 'https://avatars1.githubusercontent.com/u/25162437?s=200&v=4',
+        description:
+          'Wechaty is a Conversational AI Chatbot SDK for Individual Account, Group Chat, and Multi-Person Chat.'
+      });
+      await contact?.say(urlLink);
 
       // 4. send mini program to contact
       // const miniProgram = new bot.MiniProgram({
@@ -54,14 +54,6 @@ async function main() {
       //   shareId: 'gh_1f2d01b1a51f'
       // });
       // await contact?.say(miniProgram);
-
-      // 5. send location to contact
-      // const location = new bot.Location({
-      //   latitude: 25.097486,
-      //   longitude: 121.565119,
-      //   title: 'Wechaty'
-      // });
-      // await contact?.say(location);
     } catch (error) {
       log.error('Bot say error:', error.message);
     }
