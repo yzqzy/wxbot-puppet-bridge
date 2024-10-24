@@ -21,7 +21,7 @@ async function main() {
 
     try {
       const basePath = path.join(process.cwd(), 'examples/media/');
-      const contact = await bot.Contact.find('wxid_jwh781o24r3422');
+      const contact = await bot.Contact.find('filehelper');
 
       log.info('Contact: ', jsonStringify(contact));
 
@@ -33,27 +33,27 @@ async function main() {
       // await contact?.say(fileBox);
 
       // 3. send url link to contact
-      const urlLink = new bot.UrlLink({
-        title: 'Wechaty',
-        url: 'https://github.com/wechaty/wechaty',
-        thumbnailUrl: 'https://avatars1.githubusercontent.com/u/25162437?s=200&v=4',
-        description:
-          'Wechaty is a Conversational AI Chatbot SDK for Individual Account, Group Chat, and Multi-Person Chat.'
-      });
-      await contact?.say(urlLink);
+      // const urlLink = new bot.UrlLink({
+      //   title: 'Wechaty',
+      //   url: 'https://github.com/wechaty/wechaty',
+      //   thumbnailUrl: 'https://avatars1.githubusercontent.com/u/25162437?s=200&v=4',
+      //   description:
+      //     'Wechaty is a Conversational AI Chatbot SDK for Individual Account, Group Chat, and Multi-Person Chat.'
+      // });
+      // await contact?.say(urlLink);
 
       // 4. send mini program to contact
-      // const miniProgram = new bot.MiniProgram({
-      //   title: 'Wechaty',
-      //   username: 'wechaty',
-      //   appid: 'wx782c26e4c19acffb',
-      //   description:
-      //     'Wechaty is a Conversational AI Chatbot SDK for Individual Account, Group Chat, and Multi-Person Chat.',
-      //   pagePath: 'pages/index/index',
-      //   iconUrl: 'https://avatars1.githubusercontent.com/u/25162437?s=200&v=4',
-      //   shareId: 'gh_1f2d01b1a51f'
-      // });
-      // await contact?.say(miniProgram);
+      //
+      const miniProgram = new bot.MiniProgram({
+        title: '微信读书',
+        username: 'gh_d8581e7a45ed@app',
+        appid: 'wx8a5d6f9fad07544e',
+        description: '微信读书提供海量正版书籍、小说、漫画、公众号、听书，多设备同步实现跨屏阅读。',
+        pagePath: '',
+        iconUrl: '',
+        thumbUrl: ''
+      });
+      await contact?.say(miniProgram);
     } catch (error) {
       log.error('Bot say error:', error.message);
     }
