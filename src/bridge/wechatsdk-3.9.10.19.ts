@@ -1282,10 +1282,17 @@ class PuppetBridge extends PUPPET.Puppet {
       contact.address = [contact.province, contact.city].filter(Boolean).join(' ');
       contact.alias = contactInfo.alias;
       contact.signature = contactInfo.signature;
-      contact.tags = contactInfo?.labelIds.map(id => String(id)) || [];
+      contact.tags = contactInfo.labelIds ? contactInfo.labelIds.map(id => String(id)) : [];
 
       this.contactStore.set(contact.id, contact);
-    } catch (error) {}
+    } catch (error) {
+      log.error('PuppetBridge', 'updateContactPayload() exception %s', error.stack);
+
+      await delaySync(1000);
+
+      log.info('PuppetBridge', 'updateContactPayload() retry %s', contact.id);
+      await this.updateContactPayload(contact, true);
+    }
   }
 
   private mapValues(map: Map<any, any>) {
