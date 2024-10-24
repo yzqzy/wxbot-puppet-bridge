@@ -1685,16 +1685,52 @@ class PuppetBridge extends PUPPET.Puppet {
 
   // Message Parser
 
+  private getMentionedNames(text: string): string[] {
+    const ids: string[] = [];
+    const matches = text.match(/@[a-zA-Z0-9_-]+/g);
+    if (matches) {
+      matches.forEach(match => {
+        const id = match.replace('@', '');
+        if (id) {
+          ids.push(id);
+        }
+      });
+    }
+    return ids;
+  }
+
+  private getMentionedIds(text: string, roomId: string): string[] {
+    const room = this.roomStore.get(roomId);
+    if (!room) return [];
+
+    const ids: string[] = [];
+    const members = room.members || [];
+
+    const names = this.getMentionedNames(text);
+
+    for (const name of names) {
+      members.forEach(member => {
+        if (member.name === name && !ids.includes(member.id)) {
+          ids.push(member.id);
+        }
+      });
+    }
+
+    return ids;
+  }
+
   private async msgHandler(message: RecvMsg): Promise<void> {
     let roomId = '';
     let talkerId = '';
     let listenerId = '';
+    let mentionIdList: string[] = [];
 
     if (message.from.includes('@chatroom')) {
       const contentArr = message.content.split(':\n');
       roomId = message.from;
       talkerId = contentArr.length > 1 ? contentArr[0] : '';
       message.content = message.content.replace(`${talkerId}:\n`, '');
+      mentionIdList = this.getMentionedIds(message.content, roomId);
     } else if (message.to.includes('@chatroom')) {
       talkerId = message.from;
       roomId = message.to;
@@ -1748,10 +1784,12 @@ class PuppetBridge extends PUPPET.Puppet {
     let roomId = '';
     let talkerId = '';
     let listenerId = '';
+    let mentionIdList: string[] = [];
 
     if (message.isChatroomMsg) {
       roomId = message.talker;
       talkerId = message.userName;
+      mentionIdList = this.getMentionedIds(message.content, roomId);
     } else {
       talkerId = message.userName;
       listenerId = message.talker;
@@ -1779,6 +1817,7 @@ class PuppetBridge extends PUPPET.Puppet {
       text: content,
       talkerId,
       listenerId: roomId ? '' : listenerId,
+      mentionIdList,
       timestamp: Date.now(),
       roomId
     } as Message;
