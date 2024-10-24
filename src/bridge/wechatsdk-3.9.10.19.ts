@@ -21,7 +21,7 @@ import type { BridgeProtocol } from '@src/agents/wechatsdk-agent';
 import { REPOS_URL } from '@src/config/config';
 import Bridge from '@src/agents/wechatsdk-agent';
 import { getDates, jsonStringify } from '@src/shared/tools';
-import { ContactVerifyResult, RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
+import { ContactVerifyResult, OwnMsg, RecvMsg, RecvScanMsg, User } from '@src/agents/wechatsdk-types';
 import { ScanStatus } from 'wechaty-puppet/types';
 import { createDirIfNotExist, removeFile, xmlToJson, xmlDecrypt, delaySync } from '@src/shared';
 import { normalizedMsg } from './transforms/message-parser';
@@ -1485,6 +1485,9 @@ class PuppetBridge extends PUPPET.Puppet {
   private isRecvMsg(msg: RecvMsg | RecvScanMsg): msg is RecvMsg {
     return (msg as RecvMsg)?.type !== null && (msg as RecvMsg)?.type !== undefined;
   }
+  private isOwnMsg(msg: RecvMsg | RecvScanMsg | OwnMsg): msg is OwnMsg {
+    return (msg as OwnMsg)?.msgType !== null && (msg as OwnMsg)?.msgType !== undefined;
+  }
 
   private addMessageToStore(message: Message) {
     if (this.messageStore.size >= this.messageStoreMaxCount) {
@@ -1741,6 +1744,50 @@ class PuppetBridge extends PUPPET.Puppet {
     }
   }
 
+  private async ownMsgHandler(message: OwnMsg) {
+    let roomId = '';
+    let talkerId = '';
+    let listenerId = '';
+
+    if (message.isChatroomMsg) {
+      roomId = message.talker;
+      talkerId = message.userName;
+    } else {
+      talkerId = message.userName;
+      listenerId = message.talker;
+    }
+
+    if (talkerId) {
+      await this.updateContactPayload({
+        id: talkerId
+      } as PuppetContact);
+    }
+    if (listenerId) {
+      await this.updateContactPayload({
+        id: listenerId
+      } as PuppetContact);
+    }
+
+    const { content, type } = await normalizedMsg({
+      content: message.content,
+      type: message.msgType
+    } as RecvMsg);
+
+    const payload = {
+      type,
+      id: message.msgSvrID.toString(),
+      text: content,
+      talkerId,
+      listenerId: roomId ? '' : listenerId,
+      timestamp: Date.now(),
+      roomId
+    } as Message;
+
+    log.info('PuppetBridge', 'onMessage() message payload %s', jsonStringify(payload));
+    this.addMessageToStore(payload);
+    this.emit('message', { messageId: payload.id });
+  }
+
   private async onMessage(message: RecvMsg | RecvScanMsg): Promise<void> {
     if (!message || !this.isReady) return;
 
@@ -1754,6 +1801,11 @@ class PuppetBridge extends PUPPET.Puppet {
         await this.bridge.getUserInfo();
       }
       this.msgHandler(message);
+      return;
+    }
+
+    if (this.isOwnMsg(message)) {
+      this.ownMsgHandler(message);
       return;
     }
 

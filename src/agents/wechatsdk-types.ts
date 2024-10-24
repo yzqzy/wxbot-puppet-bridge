@@ -96,6 +96,27 @@ export interface RecvScanMsg extends RecvScanedMsg {
   uuid: string;
 }
 
+export interface OwnMsg {
+  content: string;
+  createTime: string;
+  isChatroomMsg: number;
+  isSender: number;
+  md5: string;
+  msgSvrID: LosslessNumber;
+  msgType: LosslessNumber;
+  szMsgSvrID: string;
+  talker: string;
+  talkerInfo: {
+    alias: string;
+    nickName: string;
+    smallHeadImgUrl: string;
+    type: number;
+    userName: string;
+    verifyFlag: string;
+  };
+  userName: string;
+}
+
 export interface User {
   alias: string;
   bigHeadImgUrl: string;
