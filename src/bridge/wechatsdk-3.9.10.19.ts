@@ -1708,13 +1708,14 @@ class PuppetBridge extends PUPPET.Puppet {
 
     const names = this.getMentionedNames(text);
 
-    for (const name of names) {
-      members.forEach(member => {
+    names.forEach(name => {
+      for (const member of members) {
         if (member.name === name && !ids.includes(member.id)) {
           ids.push(member.id);
+          break;
         }
-      });
-    }
+      }
+    });
 
     return ids;
   }
@@ -1734,6 +1735,7 @@ class PuppetBridge extends PUPPET.Puppet {
     } else if (message.to.includes('@chatroom')) {
       talkerId = message.from;
       roomId = message.to;
+      mentionIdList = this.getMentionedIds(message.content, roomId);
     } else {
       talkerId = message.from;
       listenerId = message.to;
@@ -1758,6 +1760,7 @@ class PuppetBridge extends PUPPET.Puppet {
       text: content,
       talkerId,
       listenerId: roomId ? '' : listenerId,
+      mentionIdList,
       timestamp: Date.now(),
       roomId
     } as Message;
